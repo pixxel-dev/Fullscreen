@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+    <SwitchPreferenceCompat
+        app:key="hud_enabled"
+        app:title="Включить оверлей"
+        app:summary="Показывать плавающую кнопку поверх экрана"
+        app:defaultValue="false" />
+
+    <ListPreference
+        app:key="ihu_package"
+        app:title="Приложение для запуска"
+        app:summary="Выберите приложение, которое будет открываться по кнопке"
+        app:useSimpleSummaryProvider="true" />
+</PreferenceScreen>

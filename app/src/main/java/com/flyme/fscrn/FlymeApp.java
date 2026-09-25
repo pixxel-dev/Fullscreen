@@ -1,8 +1,8 @@
-package ru.encars.lixiangtweaks;
+package com.flyme.fscrn;
 
 import android.app.Application;
 
-public class LixiangApp extends Application {
+public class FlymeApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();

@@ -1,2 +1,2 @@
-This is an Android project skeleton for a floating app overlay.
-Version: 2026.09.25_07-25-06
+This is a clean and understandable Android project for a floating app overlay tweak.
+Version: 2026.09.25_10-10-44
