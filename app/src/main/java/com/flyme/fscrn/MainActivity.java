@@ -9,7 +9,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.preference.ListPreference;
+import androidx.preference.MultiSelectListPreference;
 import androidx.preference.PreferenceFragmentCompat;
 import com.flyme.fscrn.service.OverlayService;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private void populateAppsList() {
-            ListPreference listPreference = findPreference("ihu_package");
+            MultiSelectListPreference listPreference = findPreference("ihu_package");
             if (listPreference != null) {
                 PackageManager pm = requireContext().getPackageManager();
                 Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
@@ -49,9 +49,6 @@ public class MainActivity extends AppCompatActivity {
 
                 List<CharSequence> entries = new ArrayList<>();
                 List<CharSequence> entryValues = new ArrayList<>();
-
-                entries.add("Нет (None)");
-                entryValues.add("");
 
                 for (ResolveInfo info : activities) {
                     entries.add(info.loadLabel(pm).toString());
