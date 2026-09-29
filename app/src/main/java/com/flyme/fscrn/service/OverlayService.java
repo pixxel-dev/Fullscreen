@@ -16,8 +16,15 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.Toast;
+import android.app.AlertDialog;
+import android.content.pm.PackageManager;
+import android.view.WindowManager.LayoutParams;
+import java.util.ArrayList;
+import java.util.Set;
+import java.util.Collections;
 
 import com.flyme.fscrn.R;
 
@@ -40,7 +47,11 @@ public class OverlayService extends Service {
                 .setContentText("Displaying over other apps")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .build();
-        startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(1, notification);
+        }
     }
 
     @Override
@@ -73,6 +84,7 @@ public class OverlayService extends Service {
             overlayView.setOnTouchListener(new View.OnTouchListener() {
                 private int initialY;
                 private float initialTouchY;
+                private boolean isClick;
 
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
@@ -80,16 +92,26 @@ public class OverlayService extends Service {
                         case MotionEvent.ACTION_DOWN:
                             initialY = params.y;
                             initialTouchY = event.getRawY();
-                            return false;
+                            isClick = true;
+                            return true;
                         case MotionEvent.ACTION_MOVE:
-                            params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                            windowManager.updateViewLayout(overlayView, params);
-                            return false;
+                            int deltaY = (int) (event.getRawY() - initialTouchY);
+                            if (Math.abs(deltaY) > ViewConfiguration.get(OverlayService.this).getScaledTouchSlop()) {
+                                isClick = false;
+                            }
+                            if (!isClick) {
+                                params.y = initialY + deltaY;
+                                windowManager.updateViewLayout(overlayView, params);
+                            }
+                            return true;
                         case MotionEvent.ACTION_UP:
+                            if (isClick) {
+                                v.performClick();
+                            }
                             prefs.edit().putInt("position", params.y).apply();
-                            return false;
+                            return true;
                     }
-                    return false;
+                    return true;
                 }
             });
         }
@@ -97,23 +119,59 @@ public class OverlayService extends Service {
     }
 
     private void launchApp() {
-        String targetPackage = prefs.getString("ihu_package", null);
-        if (targetPackage != null && !targetPackage.isEmpty()) {
-            Intent launchIntent = getPackageManager().getLaunchIntentForPackage(targetPackage);
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                try {
-                    Bundle bundle = ActivityOptions.makeBasic().toBundle();
-                    startActivity(launchIntent, bundle);
-                } catch (Exception e) {
-                    startActivity(launchIntent);
-                }
-            } else {
-                Toast.makeText(this, "App not found!", Toast.LENGTH_SHORT).show();
+        Set<String> targetPackages = prefs.getStringSet("ihu_package", Collections.emptySet());
+
+        if (targetPackages.isEmpty()) {
+            Toast.makeText(this, "No app selected in settings!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (targetPackages.size() == 1) {
+            startPackage(targetPackages.iterator().next());
+        } else {
+            showAppSelectionDialog(new ArrayList<>(targetPackages));
+        }
+    }
+
+    private void startPackage(String targetPackage) {
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(targetPackage);
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                Bundle bundle = ActivityOptions.makeBasic().toBundle();
+                startActivity(launchIntent, bundle);
+            } catch (Exception e) {
+                startActivity(launchIntent);
             }
         } else {
-            Toast.makeText(this, "No app selected in settings!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "App not found!", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void showAppSelectionDialog(ArrayList<String> packages) {
+        PackageManager pm = getPackageManager();
+        String[] appNames = new String[packages.size()];
+        for (int i = 0; i < packages.size(); i++) {
+            try {
+                appNames[i] = pm.getApplicationLabel(pm.getApplicationInfo(packages.get(i), 0)).toString();
+            } catch (PackageManager.NameNotFoundException e) {
+                appNames[i] = packages.get(i);
+            }
+        }
+
+        AlertDialog dialog = new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Выберите приложение")
+                .setItems(appNames, (dialogInterface, i) -> {
+                    startPackage(packages.get(i));
+                })
+                .create();
+
+        // Allow the dialog to be displayed from a background service
+        int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_PHONE;
+        dialog.getWindow().setType(layoutFlag);
+        dialog.show();
     }
 
     private void createNotificationChannel() {

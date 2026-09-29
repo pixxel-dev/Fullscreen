@@ -1,2 +1,2 @@
-This is a clean and understandable Android project for a floating app overlay tweak.
-Version: 2026.09.25_10-10-44
+This repository contains a clean, from-scratch Android project implementing a floating button overlay tweak.
+Version: 2026.09.29_08-50-39
