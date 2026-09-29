@@ -90,12 +90,12 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if ("hud_enabled".equals(key) || "overlay_position_x".equals(key)) {
+            if ("hud_enabled".equals(key) || "overlay_position_x".equals(key) || "button_size".equals(key)) {
                 boolean isEnabled = sharedPreferences.getBoolean("hud_enabled", false);
                 Intent serviceIntent = new Intent(requireContext(), OverlayService.class);
                 if (isEnabled) {
-                    // Stop and start to apply position changes immediately
-                    if ("overlay_position_x".equals(key)) {
+                    // Stop and start to apply visual changes immediately
+                    if ("overlay_position_x".equals(key) || "button_size".equals(key)) {
                         requireContext().stopService(serviceIntent);
                     }
                     requireContext().startForegroundService(serviceIntent);
