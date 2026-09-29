@@ -25,12 +25,17 @@ android {
 
     buildTypes {
         debug {
-            // using default debug keystore
+            // Using default debug keystore
         }
         release {
             minifyEnabled true
             shrinkResources true
-            signingConfig signingConfigs.release
+            // only apply release signing if the file actually exists
+            if (file(System.getenv("KEYSTORE_PATH") ?: "keystore.jks").exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

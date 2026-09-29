@@ -27,8 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Set;
 
-public class OverlayService extends AccessibilityService implements SharedPreferences.OnSharedPreferenceChangeListener {
-    public static final String ACTION_UPDATE_OVERLAYS = "com.flyme.fscrn.ACTION_UPDATE_OVERLAYS";
+public class OverlayService extends AccessibilityService {
     private static OverlayService instance;
     private WindowManager windowManager;
     private SharedPreferences prefs;
@@ -54,7 +53,6 @@ public class OverlayService extends AccessibilityService implements SharedPrefer
         instance = this;
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         prefs = getSharedPreferences(getPackageName() + "_preferences", Context.MODE_PRIVATE);
-        prefs.registerOnSharedPreferenceChangeListener(this);
         updateQuickLaunchButton();
     }
 
@@ -139,22 +137,15 @@ public class OverlayService extends AccessibilityService implements SharedPrefer
     }
 
     private void showFullscreenToggleButton() {
-        int sizeDp = prefs.getInt("button_size", 48);
-        int sizePx = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
-
         if (fullscreenToggleView != null) {
             ImageView iv = fullscreenToggleView.findViewById(R.id.overlay_image_view);
             iv.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
-
-            // Update layout params
-            iv.getLayoutParams().width = sizePx;
-            iv.getLayoutParams().height = sizePx;
-            fullscreenToggleParams.width = sizePx;
-            fullscreenToggleParams.height = sizePx;
-            windowManager.updateViewLayout(fullscreenToggleView, fullscreenToggleParams);
             return;
         }
+
+        int sizeDp = prefs.getInt("button_size", 48);
+        int sizePx = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
 
         fullscreenToggleView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
         ImageView iv = fullscreenToggleView.findViewById(R.id.overlay_image_view);
@@ -284,16 +275,7 @@ public class OverlayService extends AccessibilityService implements SharedPrefer
     public boolean onUnbind(Intent intent) {
         if (quickLaunchView != null) windowManager.removeView(quickLaunchView);
         if (fullscreenToggleView != null) windowManager.removeView(fullscreenToggleView);
-        if (prefs != null) prefs.unregisterOnSharedPreferenceChangeListener(this);
         instance = null;
         return super.onUnbind(intent);
-    }
-
-    @Override
-    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-        if (key != null) {
-            updateQuickLaunchButton();
-            updateFullscreenState();
-        }
     }
 }
