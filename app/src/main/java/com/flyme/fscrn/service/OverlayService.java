@@ -23,6 +23,7 @@ import android.widget.Toast;
 import android.app.AlertDialog;
 import android.content.pm.PackageManager;
 import android.view.WindowManager.LayoutParams;
+import android.widget.ImageView;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.Collections;
@@ -33,6 +34,7 @@ public class OverlayService extends Service {
     private WindowManager windowManager;
     private View overlayView;
     private SharedPreferences prefs;
+    private boolean isFullscreenModeReady = false;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -156,10 +158,24 @@ public class OverlayService extends Service {
         if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             try {
-                Bundle bundle = ActivityOptions.makeBasic()
-                        .setLaunchDisplayId(1003)
-                        .toBundle();
-                startActivity(launchIntent, bundle);
+                if (isFullscreenModeReady) {
+                    Bundle bundle = ActivityOptions.makeBasic()
+                            .setLaunchDisplayId(1003)
+                            .toBundle();
+                    startActivity(launchIntent, bundle);
+
+                    // Reset state
+                    isFullscreenModeReady = false;
+                    ImageView iv = overlayView.findViewById(R.id.overlay_image_view);
+                    if (iv != null) iv.setImageResource(R.mipmap.ic_launcher);
+                } else {
+                    startActivity(launchIntent);
+
+                    // Enable fullscreen ready state
+                    isFullscreenModeReady = true;
+                    ImageView iv = overlayView.findViewById(R.id.overlay_image_view);
+                    if (iv != null) iv.setImageResource(R.drawable.ic_fullscreen);
+                }
             } catch (Exception e) {
                 startActivity(launchIntent);
             }
