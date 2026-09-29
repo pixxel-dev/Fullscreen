@@ -24,8 +24,12 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Set Version Name
+      id: vars
+      run: echo "VERSION_NAME=$(date +'%Y.%m.%d_%H-%M-%S')" >> $GITHUB_ENV
+
     - name: Build with Gradle
-      run: ./gradlew assembleRelease
+      run: ./gradlew assembleRelease -PversionName=${{ env.VERSION_NAME }}
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
