@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:android="http://schemas.android.com/apk/res/android">
     <SwitchPreferenceCompat
         app:key="hud_enabled"
         app:title="Включить оверлей"
@@ -19,6 +19,14 @@
         app:entryValues="@array/position_values"
         app:defaultValue="left"
         app:useSimpleSummaryProvider="true" />
+
+    <SeekBarPreference
+        app:key="button_size"
+        app:title="Размер кнопки"
+        app:min="30"
+        android:max="150"
+        app:defaultValue="48"
+        app:showSeekBarValue="true" />
 
     <Preference
         app:key="app_info"

@@ -5,10 +5,11 @@
     android:background="@android:color/transparent">
 
     <ImageView
+        android:id="@+id/overlay_image_view"
         android:layout_width="48dp"
         android:layout_height="48dp"
+        android:scaleType="fitCenter"
         android:src="@mipmap/ic_launcher"
         android:background="?android:attr/selectableItemBackgroundBorderless"
-
         />
 </FrameLayout>

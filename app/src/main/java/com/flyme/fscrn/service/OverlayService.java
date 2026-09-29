@@ -9,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.PixelFormat;
+import android.util.TypedValue;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -66,9 +67,13 @@ public class OverlayService extends Service {
                     ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                     : WindowManager.LayoutParams.TYPE_PHONE;
 
+            int sizeDp = prefs.getInt("button_size", 48);
+            int sizePx = (int) TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
+
             WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    sizePx,
+                    sizePx,
                     layoutFlag,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
@@ -86,6 +91,13 @@ public class OverlayService extends Service {
             windowManager.addView(overlayView, params);
 
             overlayView.setOnClickListener(v -> launchApp());
+
+            // Ensure child ImageView matches parent size
+            View imageView = overlayView.findViewById(R.id.overlay_image_view);
+            if (imageView != null) {
+                imageView.getLayoutParams().width = sizePx;
+                imageView.getLayoutParams().height = sizePx;
+            }
 
             overlayView.setOnTouchListener(new View.OnTouchListener() {
                 private int initialY;
