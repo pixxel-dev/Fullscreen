@@ -12,6 +12,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.MultiSelectListPreference;
 import androidx.preference.PreferenceFragmentCompat;
 import com.flyme.fscrn.service.OverlayService;
+import androidx.preference.Preference;
+import android.content.pm.PackageInfo;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +39,20 @@ public class MainActivity extends AppCompatActivity {
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
             setPreferencesFromResource(R.xml.buttons_preferences, rootKey);
             populateAppsList();
+            setupAppInfo();
+        }
+
+        private void setupAppInfo() {
+            Preference appInfoPref = findPreference("app_info");
+            if (appInfoPref != null) {
+                try {
+                    PackageInfo pInfo = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0);
+                    String version = pInfo.versionName;
+                    appInfoPref.setSummary("Версия: " + version);
+                } catch (PackageManager.NameNotFoundException e) {
+                    appInfoPref.setSummary("Версия: Неизвестно");
+                }
+            }
         }
 
         private void populateAppsList() {
@@ -74,10 +90,14 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if ("hud_enabled".equals(key)) {
-                boolean isEnabled = sharedPreferences.getBoolean(key, false);
+            if ("hud_enabled".equals(key) || "overlay_position_x".equals(key)) {
+                boolean isEnabled = sharedPreferences.getBoolean("hud_enabled", false);
                 Intent serviceIntent = new Intent(requireContext(), OverlayService.class);
                 if (isEnabled) {
+                    // Stop and start to apply position changes immediately
+                    if ("overlay_position_x".equals(key)) {
+                        requireContext().stopService(serviceIntent);
+                    }
                     requireContext().startForegroundService(serviceIntent);
                 } else {
                     requireContext().stopService(serviceIntent);

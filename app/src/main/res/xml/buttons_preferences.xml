@@ -10,4 +10,18 @@
         app:key="ihu_package"
         app:title="Приложения для запуска"
         app:summary="Выберите одно или несколько приложений" />
+
+    <ListPreference
+        app:key="overlay_position_x"
+        app:title="Расположение кнопки"
+        app:summary="Выберите сторону экрана для оверлея"
+        app:entries="@array/position_entries"
+        app:entryValues="@array/position_values"
+        app:defaultValue="left"
+        app:useSimpleSummaryProvider="true" />
+
+    <Preference
+        app:key="app_info"
+        app:title="О приложении"
+        app:summary="Версия: " />
 </PreferenceScreen>
