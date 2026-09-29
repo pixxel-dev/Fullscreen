@@ -16,6 +16,7 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.Toast;
 
@@ -40,7 +41,11 @@ public class OverlayService extends Service {
                 .setContentText("Displaying over other apps")
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .build();
-        startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(1, notification);
+        }
     }
 
     @Override
@@ -73,6 +78,7 @@ public class OverlayService extends Service {
             overlayView.setOnTouchListener(new View.OnTouchListener() {
                 private int initialY;
                 private float initialTouchY;
+                private boolean isClick;
 
                 @Override
                 public boolean onTouch(View v, MotionEvent event) {
@@ -80,16 +86,26 @@ public class OverlayService extends Service {
                         case MotionEvent.ACTION_DOWN:
                             initialY = params.y;
                             initialTouchY = event.getRawY();
-                            return false;
+                            isClick = true;
+                            return true;
                         case MotionEvent.ACTION_MOVE:
-                            params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                            windowManager.updateViewLayout(overlayView, params);
-                            return false;
+                            int deltaY = (int) (event.getRawY() - initialTouchY);
+                            if (Math.abs(deltaY) > ViewConfiguration.get(OverlayService.this).getScaledTouchSlop()) {
+                                isClick = false;
+                            }
+                            if (!isClick) {
+                                params.y = initialY + deltaY;
+                                windowManager.updateViewLayout(overlayView, params);
+                            }
+                            return true;
                         case MotionEvent.ACTION_UP:
+                            if (isClick) {
+                                v.performClick();
+                            }
                             prefs.edit().putInt("position", params.y).apply();
-                            return false;
+                            return true;
                     }
-                    return false;
+                    return true;
                 }
             });
         }
