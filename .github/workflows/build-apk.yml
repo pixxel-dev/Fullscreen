@@ -28,7 +28,15 @@ jobs:
       id: vars
       run: echo "VERSION_NAME=$(date +'%Y.%m.%d_%H-%M-%S')" >> $GITHUB_ENV
 
+    - name: Decode Keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 -d > app/keystore.jks
+
     - name: Build with Gradle
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: ./gradlew assembleRelease -PversionName=${{ env.VERSION_NAME }}
 
     - name: Upload APK
