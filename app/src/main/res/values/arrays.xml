@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="position_entries">
+        <item>Слева</item>
+        <item>Справа</item>
+    </string-array>
+    <string-array name="position_values">
+        <item>left</item>
+        <item>right</item>
+    </string-array>
+</resources>

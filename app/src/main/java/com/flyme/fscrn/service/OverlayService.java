@@ -73,7 +73,13 @@ public class OverlayService extends Service {
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
 
-            params.gravity = Gravity.TOP | Gravity.START;
+            String positionX = prefs.getString("overlay_position_x", "left");
+            if ("right".equals(positionX)) {
+                params.gravity = Gravity.TOP | Gravity.END;
+            } else {
+                params.gravity = Gravity.TOP | Gravity.START;
+            }
+
             params.x = 0;
             params.y = prefs.getInt("position", 100);
 
