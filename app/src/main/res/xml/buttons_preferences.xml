@@ -1,35 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:android="http://schemas.android.com/apk/res/android">
-    <SwitchPreferenceCompat
-        app:key="hud_enabled"
-        app:title="Включить оверлей"
-        app:summary="Показывать плавающую кнопку поверх экрана"
-        app:defaultValue="false" />
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <MultiSelectListPreference
-        app:key="ihu_package"
-        app:title="Приложения для запуска"
-        app:summary="Выберите одно или несколько приложений" />
+    <PreferenceCategory app:title="Меню быстрого запуска">
+        <SwitchPreferenceCompat
+            app:key="quick_launch_enabled"
+            app:title="Постоянная кнопка-меню"
+            app:summary="Показывать плавающую кнопку для быстрого запуска приложений"
+            app:defaultValue="false" />
 
-    <ListPreference
-        app:key="overlay_position_x"
-        app:title="Расположение кнопки"
-        app:summary="Выберите сторону экрана для оверлея"
-        app:entries="@array/position_entries"
-        app:entryValues="@array/position_values"
-        app:defaultValue="left"
-        app:useSimpleSummaryProvider="true" />
+        <MultiSelectListPreference
+            app:key="quick_launch_apps"
+            app:title="Приложения для меню"
+            app:summary="Выберите приложения для меню быстрого запуска"
+            app:dependency="quick_launch_enabled" />
 
-    <SeekBarPreference
-        app:key="button_size"
-        app:title="Размер кнопки"
-        app:min="30"
-        android:max="150"
-        app:defaultValue="48"
-        app:showSeekBarValue="true" />
+        <ListPreference
+            app:key="overlay_position_x"
+            app:title="Расположение меню"
+            app:summary="Выберите сторону экрана"
+            app:entries="@array/position_entries"
+            app:entryValues="@array/position_values"
+            app:defaultValue="left"
+            app:useSimpleSummaryProvider="true"
+            app:dependency="quick_launch_enabled" />
+
+        <SeekBarPreference
+            app:key="button_size"
+            app:title="Размер кнопки"
+            app:min="30"
+            android:max="150"
+            app:defaultValue="48"
+            app:showSeekBarValue="true"
+            app:dependency="quick_launch_enabled" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Авто-оверлей (На весь экран)">
+        <SwitchPreferenceCompat
+            app:key="fullscreen_overlay_enabled"
+            app:title="Включить службу авто-оверлея"
+            app:summary="Кнопка управления окном будет появляться поверх выбранных приложений"
+            app:defaultValue="false" />
+
+        <MultiSelectListPreference
+            app:key="fullscreen_apps"
+            app:title="Приложения для разворота"
+            app:summary="При открытии этих приложений будет появляться кнопка"
+            app:dependency="fullscreen_overlay_enabled" />
+    </PreferenceCategory>
 
     <Preference
         app:key="app_info"
-        app:title="О приложении"
-        app:summary="Версия: " />
+        app:layout="@layout/pref_about"
+        app:selectable="false" />
+
 </PreferenceScreen>
