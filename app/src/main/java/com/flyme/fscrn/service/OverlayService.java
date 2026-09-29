@@ -156,7 +156,9 @@ public class OverlayService extends Service {
         if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             try {
-                Bundle bundle = ActivityOptions.makeBasic().toBundle();
+                Bundle bundle = ActivityOptions.makeBasic()
+                        .setLaunchDisplayId(1003)
+                        .toBundle();
                 startActivity(launchIntent, bundle);
             } catch (Exception e) {
                 startActivity(launchIntent);
