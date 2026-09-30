@@ -50,15 +50,18 @@ public class MainActivity extends AppCompatActivity {
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setOnItemSelectedListener(item -> {
             Fragment selectedFragment = null;
+            String tag = null;
             if (item.getItemId() == R.id.nav_tweaks) {
                 selectedFragment = new SettingsFragment();
+                tag = "FRAG_TWEAKS";
             } else if (item.getItemId() == R.id.nav_files) {
                 selectedFragment = new FileManagerFragment();
+                tag = "FRAG_FILES";
             }
             if (selectedFragment != null) {
                 getSupportFragmentManager()
                         .beginTransaction()
-                        .replace(R.id.fragment_container, selectedFragment)
+                        .replace(R.id.fragment_container, selectedFragment, tag)
                         .commit();
             }
             return true;
@@ -67,6 +70,14 @@ public class MainActivity extends AppCompatActivity {
         // Load default fragment
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_tweaks);
+        } else {
+            // Ensure the correct fragment is showing after theme toggle
+            Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
+            if (f instanceof SettingsFragment) {
+                bottomNav.getMenu().findItem(R.id.nav_tweaks).setChecked(true);
+            } else if (f instanceof FileManagerFragment) {
+                bottomNav.getMenu().findItem(R.id.nav_files).setChecked(true);
+            }
         }
     }
 
@@ -89,6 +100,17 @@ public class MainActivity extends AppCompatActivity {
                 themeItem.setTitle("Темная тема");
             }
         }
+
+        MenuItem pasteItem = menu.findItem(R.id.action_paste);
+        if (pasteItem != null) {
+            Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
+            if (f instanceof FileManagerFragment) {
+                pasteItem.setVisible(((FileManagerFragment) f).hasFileInClipboard());
+            } else {
+                pasteItem.setVisible(false);
+            }
+        }
+
         return super.onPrepareOptionsMenu(menu);
     }
 
@@ -96,6 +118,12 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.action_theme_toggle) {
             toggleTheme();
+            return true;
+        } else if (item.getItemId() == R.id.action_paste) {
+            Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
+            if (f instanceof FileManagerFragment) {
+                ((FileManagerFragment) f).pasteFile();
+            }
             return true;
         }
         return super.onOptionsItemSelected(item);

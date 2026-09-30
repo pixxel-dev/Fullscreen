@@ -14,8 +14,15 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ImageButton;
+import android.webkit.MimeTypeMap;
+import androidx.core.content.FileProvider;
+import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
+import com.google.android.material.navigation.NavigationView;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
@@ -34,14 +41,14 @@ public class FileManagerFragment extends Fragment {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
 
-    private FileAdapter leftAdapter;
-    private FileAdapter rightAdapter;
+    private FileAdapter mainAdapter;
 
-    private TextView leftPathText, leftStorageInfo;
-    private TextView rightPathText, rightStorageInfo;
+    private TextView mainPathText, mainStorageInfo;
+    private DrawerLayout drawerLayout;
+    private NavigationView navigationView;
+    private ImageButton btnMenu;
 
-    private File currentLeftDir = Environment.getExternalStorageDirectory();
-    private File currentRightDir = Environment.getExternalStorageDirectory();
+    private File currentDir = Environment.getExternalStorageDirectory();
 
     @Nullable
     @Override
@@ -66,8 +73,7 @@ public class FileManagerFragment extends Fragment {
     public void onResume() {
         super.onResume();
         if (hasStoragePermission()) {
-            loadDirectory(currentLeftDir, true);
-            loadDirectory(currentRightDir, false);
+            loadDirectory(currentDir);
         } else if (!permissionRequested) {
             // Only request automatically if we haven't just returned from a denied request
             permissionRequested = true;
@@ -86,70 +92,117 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void setupUI(View view) {
-        leftPathText = view.findViewById(R.id.left_path_text);
-        leftStorageInfo = view.findViewById(R.id.left_storage_info);
-        RecyclerView leftRecycler = view.findViewById(R.id.left_recycler_view);
+        mainPathText = view.findViewById(R.id.main_path_text);
+        mainStorageInfo = view.findViewById(R.id.main_storage_info);
+        RecyclerView mainRecycler = view.findViewById(R.id.main_recycler_view);
+        drawerLayout = view.findViewById(R.id.drawer_layout);
+        navigationView = view.findViewById(R.id.nav_view);
+        btnMenu = view.findViewById(R.id.btn_menu);
 
-        rightPathText = view.findViewById(R.id.right_path_text);
-        rightStorageInfo = view.findViewById(R.id.right_storage_info);
-        RecyclerView rightRecycler = view.findViewById(R.id.right_recycler_view);
-
-        leftAdapter = new FileAdapter(
-            file -> handleFileClick(file, true),
-            file -> showFileOperationsDialog(file, true)
+        mainAdapter = new FileAdapter(
+            file -> handleFileClick(file),
+            file -> showFileOperationsDialog(file)
         );
-        leftRecycler.setLayoutManager(new LinearLayoutManager(getContext()));
-        leftRecycler.setAdapter(leftAdapter);
+        mainRecycler.setLayoutManager(new LinearLayoutManager(getContext()));
+        mainRecycler.setAdapter(mainAdapter);
 
-        rightAdapter = new FileAdapter(
-            file -> handleFileClick(file, false),
-            file -> showFileOperationsDialog(file, false)
-        );
-        rightRecycler.setLayoutManager(new LinearLayoutManager(getContext()));
-        rightRecycler.setAdapter(rightAdapter);
+        btnMenu.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+
+        navigationView.setNavigationItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_root) {
+                loadDirectory(new File("/"));
+            } else if (id == R.id.nav_internal) {
+                loadDirectory(Environment.getExternalStorageDirectory());
+            } else if (id == R.id.nav_add_ftp || id == R.id.nav_add_sftp || id == R.id.nav_add_smb || id == R.id.nav_add_webdav) {
+                Toast.makeText(getContext(), "В разработке: добавление сетевого диска", Toast.LENGTH_SHORT).show();
+            }
+            drawerLayout.closeDrawer(GravityCompat.START);
+            return true;
+        });
     }
 
-    private void showFileOperationsDialog(File file, boolean fromLeftPanel) {
-        String[] options = {"Копировать", "Переместить", "Удалить"};
+    private File fileInClipboard = null;
+    private boolean isCutOperation = false;
+
+    private void showFileOperationsDialog(File file) {
+        boolean isApk = file.getName().toLowerCase().endsWith(".apk");
+
+        List<String> optionsList = new ArrayList<>(Arrays.asList(
+            "Копировать", "Вырезать", "Удалить", "Переименовать", "Свойства"
+        ));
+        if (isApk) {
+            optionsList.add("Установить");
+            optionsList.add("Установить (Root/Shizuku)");
+        }
+
+        String[] options = optionsList.toArray(new String[0]);
+
         new AlertDialog.Builder(requireContext())
             .setTitle(file.getName())
             .setItems(options, (dialog, which) -> {
-                switch (which) {
-                    case 0: // Copy
-                        performFileOperation(file, fromLeftPanel, false);
+                String selectedOption = options[which];
+                switch (selectedOption) {
+                    case "Копировать":
+                        fileInClipboard = file;
+                        isCutOperation = false;
+                        Toast.makeText(getContext(), "Файл скопирован. Перейдите в нужную папку и вставьте.", Toast.LENGTH_SHORT).show();
+                        getActivity().invalidateOptionsMenu(); // Signal to show paste button
                         break;
-                    case 1: // Move
-                        performFileOperation(file, fromLeftPanel, true);
+                    case "Вырезать":
+                        fileInClipboard = file;
+                        isCutOperation = true;
+                        Toast.makeText(getContext(), "Файл вырезан. Перейдите в нужную папку и вставьте.", Toast.LENGTH_SHORT).show();
+                        getActivity().invalidateOptionsMenu(); // Signal to show paste button
                         break;
-                    case 2: // Delete
+                    case "Удалить":
                         deleteFileRecursive(file);
-                        refreshBothPanels();
+                        refreshPanel();
+                        break;
+                    case "Переименовать":
+                        showRenameDialog(file);
+                        break;
+                    case "Свойства":
+                        showPropertiesDialog(file);
+                        break;
+                    case "Установить":
+                        openFile(file); // reuse existing logic
+                        break;
+                    case "Установить (Root/Shizuku)":
+                        installApkWithShizuku(file);
                         break;
                 }
             })
             .show();
     }
 
-    private void performFileOperation(File sourceFile, boolean fromLeftPanel, boolean isMove) {
-        File targetDir = fromLeftPanel ? currentRightDir : currentLeftDir;
-        if (targetDir == null || !targetDir.exists()) {
-            Toast.makeText(getContext(), "Целевая папка недоступна", Toast.LENGTH_SHORT).show();
+    public boolean hasFileInClipboard() {
+        return fileInClipboard != null;
+    }
+
+    // Add paste capability
+    public void pasteFile() {
+        if (fileInClipboard == null || !fileInClipboard.exists()) {
+            Toast.makeText(getContext(), "Буфер пуст или файл удален", Toast.LENGTH_SHORT).show();
+            fileInClipboard = null;
+            getActivity().invalidateOptionsMenu();
             return;
         }
 
-        File targetFile = new File(targetDir, sourceFile.getName());
+        File targetFile = new File(currentDir, fileInClipboard.getName());
 
         new Thread(() -> {
             boolean success = false;
             try {
-                if (sourceFile.isDirectory()) {
-                    success = copyDirectory(sourceFile, targetFile);
+                if (fileInClipboard.isDirectory()) {
+                    success = copyDirectory(fileInClipboard, targetFile);
                 } else {
-                    success = copySingleFile(sourceFile, targetFile);
+                    success = copySingleFile(fileInClipboard, targetFile);
                 }
 
-                if (success && isMove) {
-                    deleteFileRecursive(sourceFile);
+                if (success && isCutOperation) {
+                    deleteFileRecursive(fileInClipboard);
+                    fileInClipboard = null; // Clear clipboard after move
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -158,11 +211,109 @@ public class FileManagerFragment extends Fragment {
             final boolean finalSuccess = success;
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
-                    Toast.makeText(getContext(), finalSuccess ? "Успешно" : "Ошибка операции", Toast.LENGTH_SHORT).show();
-                    refreshBothPanels();
+                    Toast.makeText(getContext(), finalSuccess ? "Успешно вставлено" : "Ошибка вставки", Toast.LENGTH_SHORT).show();
+                    if (finalSuccess && isCutOperation) {
+                        getActivity().invalidateOptionsMenu();
+                    }
+                    refreshPanel();
                 });
             }
         }).start();
+    }
+
+    private void installApkWithShizuku(File file) {
+        if (!rikka.shizuku.Shizuku.pingBinder()) {
+            Toast.makeText(getContext(), "Shizuku не запущен или недоступен", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        if (rikka.shizuku.Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            rikka.shizuku.Shizuku.requestPermission(1001);
+            Toast.makeText(getContext(), "Запрошено разрешение Shizuku, попробуйте еще раз", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Toast.makeText(getContext(), "Начинаю установку через Shizuku...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                Process process = rikka.shizuku.Shizuku.newProcess(new String[]{"pm", "install", "-r", file.getAbsolutePath()}, null, null);
+
+                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()));
+                String line;
+                StringBuilder output = new StringBuilder();
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                }
+                process.waitFor();
+
+                final String result = output.toString().trim();
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (result.contains("Success")) {
+                            Toast.makeText(getContext(), "Успешно установлено", Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(getContext(), "Ошибка: " + result, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "Сбой: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+            }
+        }).start();
+    }
+
+    private void showRenameDialog(File file) {
+        final android.widget.EditText input = new android.widget.EditText(requireContext());
+        input.setText(file.getName());
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Переименовать")
+            .setView(input)
+            .setPositiveButton("ОК", (dialog, which) -> {
+                String newName = input.getText().toString();
+                if (!newName.isEmpty()) {
+                    File newFile = new File(file.getParent(), newName);
+                    if (file.renameTo(newFile)) {
+                        refreshPanel();
+                    } else {
+                        Toast.makeText(getContext(), "Ошибка переименования", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+    }
+
+    private void showPropertiesDialog(File file) {
+        long size = getFolderSize(file);
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault());
+        String date = sdf.format(new java.util.Date(file.lastModified()));
+
+        String info = "Путь: " + file.getAbsolutePath() + "\n" +
+                      "Размер: " + FileAdapter.formatSize(size) + "\n" +
+                      "Изменен: " + date + "\n" +
+                      (file.isDirectory() ? "Тип: Папка" : "Тип: Файл");
+
+        new AlertDialog.Builder(requireContext())
+            .setTitle("Свойства")
+            .setMessage(info)
+            .setPositiveButton("ОК", null)
+            .show();
+    }
+
+    private long getFolderSize(File file) {
+        if (!file.exists()) return 0;
+        if (!file.isDirectory()) return file.length();
+        long size = 0;
+        File[] files = file.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                size += getFolderSize(f);
+            }
+        }
+        return size;
     }
 
     private boolean copySingleFile(File source, File dest) {
@@ -208,34 +359,76 @@ public class FileManagerFragment extends Fragment {
         fileOrDirectory.delete();
     }
 
-    private void refreshBothPanels() {
-        loadDirectory(currentLeftDir, true);
-        loadDirectory(currentRightDir, false);
+    private void refreshPanel() {
+        loadDirectory(currentDir);
     }
 
-    private void handleFileClick(File file, boolean isLeftPanel) {
+    private void handleFileClick(File file) {
         if (file.getName().equals("..")) {
-            File parent = (isLeftPanel ? currentLeftDir : currentRightDir).getParentFile();
+            File parent = currentDir.getParentFile();
             if (parent != null) {
-                loadDirectory(parent, isLeftPanel);
+                loadDirectory(parent);
             }
         } else if (file.isDirectory()) {
-            loadDirectory(file, isLeftPanel);
+            loadDirectory(file);
+        } else {
+            openFile(file);
         }
     }
 
-    private void loadDirectory(File dir, boolean isLeftPanel) {
-        if (dir == null || !dir.exists() || !dir.canRead()) return;
+    private void openFile(File file) {
+        try {
+            Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", file);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
 
-        if (isLeftPanel) {
-            currentLeftDir = dir;
-            leftPathText.setText(dir.getAbsolutePath());
-            updateStorageInfo(dir, leftStorageInfo);
-        } else {
-            currentRightDir = dir;
-            rightPathText.setText(dir.getAbsolutePath());
-            updateStorageInfo(dir, rightStorageInfo);
+            String mimeType = getMimeType(file.getAbsolutePath());
+            if (mimeType == null) {
+                mimeType = "*/*";
+            }
+
+            intent.setDataAndType(uri, mimeType);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            // Если это APK, возможно пользователь хочет его установить
+            if (mimeType.equals("application/vnd.android.package-archive")) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            }
+
+            if (intent.resolveActivity(requireContext().getPackageManager()) != null) {
+                startActivity(intent);
+            } else {
+                Toast.makeText(getContext(), "Нет приложения для открытия этого типа файлов", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Ошибка при открытии файла", Toast.LENGTH_SHORT).show();
+            Log.e("FileManager", "Error opening file", e);
         }
+    }
+
+    private String getMimeType(String url) {
+        String type = null;
+        String extension = MimeTypeMap.getFileExtensionFromUrl(url);
+        if (extension != null) {
+            type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.toLowerCase());
+        }
+        if (type == null && url.toLowerCase().endsWith(".apk")) {
+            return "application/vnd.android.package-archive";
+        }
+        return type;
+    }
+
+    private void loadDirectory(File dir) {
+        if (dir == null || !dir.exists() || !dir.canRead()) {
+            if (dir != null && dir.getAbsolutePath().equals("/")) {
+                // allow fallback for root even if unreadable to show empty dir if unrooted
+            } else {
+                return;
+            }
+        }
+
+        currentDir = dir;
+        mainPathText.setText(dir.getAbsolutePath());
+        updateStorageInfo(dir, mainStorageInfo);
 
         File[] filesArray = dir.listFiles();
         List<File> filesList = new ArrayList<>();
@@ -248,11 +441,7 @@ public class FileManagerFragment extends Fragment {
             filesList.addAll(Arrays.asList(filesArray));
         }
 
-        if (isLeftPanel) {
-            leftAdapter.setFiles(filesList);
-        } else {
-            rightAdapter.setFiles(filesList);
-        }
+        mainAdapter.setFiles(filesList);
     }
 
     private void updateStorageInfo(File dir, TextView infoView) {
@@ -297,8 +486,7 @@ public class FileManagerFragment extends Fragment {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                loadDirectory(currentLeftDir, true);
-                loadDirectory(currentRightDir, false);
+                loadDirectory(currentDir);
             }
         }
     }
