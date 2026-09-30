@@ -2,6 +2,18 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <PreferenceCategory app:title="Права доступа (Обязательно!)">
+        <Preference
+            app:key="request_usage_stats"
+            app:title="Разрешить доступ к истории использования"
+            app:summary="Нажмите, чтобы выдать. Нужно для работы авто-оверлея (распознавание открытых окон)" />
+
+        <Preference
+            app:key="request_accessibility"
+            app:title="(Опционально) Включить спец. возможности"
+            app:summary="Нажмите, чтобы включить Flyme Tweak. Это сделает появление кнопок мгновенным без задержек" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="Меню быстрого запуска">
         <SwitchPreferenceCompat
             app:key="quick_launch_enabled"
