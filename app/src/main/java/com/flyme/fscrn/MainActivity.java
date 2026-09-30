@@ -8,8 +8,15 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.SeekBar;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import com.flyme.fscrn.SearchableMultiSelectListPreference;
+import androidx.preference.PreferenceManager;
 import androidx.preference.PreferenceFragmentCompat;
 import com.flyme.fscrn.service.ForegroundOverlayService;
 import androidx.preference.Preference;
@@ -18,9 +25,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
+    private SharedPreferences sharedPreferences;
+    private static final String PREF_APP_BRIGHTNESS = "app_brightness";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+        applyBrightness();
+
         setContentView(R.layout.activity_main);
 
         if (!Settings.canDrawOverlays(this)) {
@@ -39,6 +52,65 @@ public class MainActivity extends AppCompatActivity {
                 .beginTransaction()
                 .replace(R.id.settings_container, new SettingsFragment())
                 .commit();
+    }
+
+    private void applyBrightness() {
+        float brightness = sharedPreferences.getFloat(PREF_APP_BRIGHTNESS, -1.0f); // -1.0 is system default
+        WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.screenBrightness = brightness;
+        getWindow().setAttributes(lp);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_brightness) {
+            showBrightnessDialog();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void showBrightnessDialog() {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_brightness, null);
+        SeekBar seekBar = dialogView.findViewById(R.id.brightness_seek_bar);
+
+        float currentBrightness = sharedPreferences.getFloat(PREF_APP_BRIGHTNESS, -1.0f);
+        if (currentBrightness == -1.0f) {
+            seekBar.setProgress(100); // Default max if not set
+        } else {
+            seekBar.setProgress((int) (currentBrightness * 100));
+        }
+
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                float brightness = progress / 100.0f;
+                if (brightness < 0.01f) brightness = 0.01f; // Prevent completely black screen
+
+                WindowManager.LayoutParams lp = getWindow().getAttributes();
+                lp.screenBrightness = brightness;
+                getWindow().setAttributes(lp);
+
+                sharedPreferences.edit().putFloat(PREF_APP_BRIGHTNESS, brightness).apply();
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setPositiveButton("Закрыть", null)
+                .show();
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
