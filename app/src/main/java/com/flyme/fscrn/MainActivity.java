@@ -116,12 +116,12 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if ("quick_launch_enabled".equals(key) || "overlay_position_x".equals(key) || "button_size".equals(key)) {
+            if ("quick_launch_enabled".equals(key) || "ql_position_x".equals(key) || "ql_button_size".equals(key)) {
                 ForegroundOverlayService service = ForegroundOverlayService.getInstance();
                 if (service != null) {
                     service.updateQuickLaunchButton();
                 }
-            } else if ("fullscreen_overlay_enabled".equals(key) || "fullscreen_apps".equals(key)) {
+            } else if ("fullscreen_overlay_enabled".equals(key) || "fullscreen_apps".equals(key) || "fs_position_x".equals(key) || "fs_button_size".equals(key)) {
                 ForegroundOverlayService service = ForegroundOverlayService.getInstance();
                 if (service != null) {
                     service.updateFullscreenState();

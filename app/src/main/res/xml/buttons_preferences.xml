@@ -2,18 +2,6 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <PreferenceCategory app:title="Права доступа (Обязательно!)">
-        <Preference
-            app:key="request_usage_stats"
-            app:title="Разрешить доступ к истории использования"
-            app:summary="Нажмите, чтобы выдать. Нужно для работы авто-оверлея (распознавание открытых окон)" />
-
-        <Preference
-            app:key="request_accessibility"
-            app:title="(Опционально) Включить спец. возможности"
-            app:summary="Нажмите, чтобы включить Flyme Tweak. Это сделает появление кнопок мгновенным без задержек" />
-    </PreferenceCategory>
-
     <PreferenceCategory app:title="Меню быстрого запуска">
         <SwitchPreferenceCompat
             app:key="quick_launch_enabled"
@@ -28,21 +16,30 @@
             app:dependency="quick_launch_enabled" />
 
         <ListPreference
-            app:key="overlay_position_x"
-            app:title="Расположение меню"
+            app:key="ql_position_x"
+            app:title="Расположение кнопки"
             app:summary="Выберите сторону экрана"
             app:entries="@array/position_entries"
             app:entryValues="@array/position_values"
             app:defaultValue="left"
             app:useSimpleSummaryProvider="true"
             app:dependency="quick_launch_enabled" />
+
+        <SeekBarPreference
+            app:key="ql_button_size"
+            app:title="Размер кнопки"
+            app:min="30"
+            android:max="150"
+            app:defaultValue="48"
+            app:showSeekBarValue="true"
+            app:dependency="quick_launch_enabled" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Авто-оверлей (На весь экран)">
         <SwitchPreferenceCompat
             app:key="fullscreen_overlay_enabled"
-            app:title="Включить службу авто-оверлея"
-            app:summary="Кнопка управления окном будет появляться поверх выбранных приложений"
+            app:title="Включить кнопку разворота"
+            app:summary="Кнопка будет появляться поверх выбранных приложений"
             app:defaultValue="false" />
 
         <MultiSelectListPreference
@@ -50,16 +47,37 @@
             app:title="Приложения для разворота"
             app:summary="При открытии этих приложений будет появляться кнопка"
             app:dependency="fullscreen_overlay_enabled" />
-    </PreferenceCategory>
 
-    <PreferenceCategory app:title="Общие настройки">
+        <ListPreference
+            app:key="fs_position_x"
+            app:title="Расположение кнопки"
+            app:summary="Выберите сторону экрана"
+            app:entries="@array/position_entries"
+            app:entryValues="@array/position_values"
+            app:defaultValue="left"
+            app:useSimpleSummaryProvider="true"
+            app:dependency="fullscreen_overlay_enabled" />
+
         <SeekBarPreference
-            app:key="button_size"
-            app:title="Размер кнопок"
+            app:key="fs_button_size"
+            app:title="Размер кнопки"
             app:min="30"
             android:max="150"
             app:defaultValue="48"
-            app:showSeekBarValue="true" />
+            app:showSeekBarValue="true"
+            app:dependency="fullscreen_overlay_enabled" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Права доступа (Обязательно!)">
+        <Preference
+            app:key="request_usage_stats"
+            app:title="Разрешить доступ к истории использования"
+            app:summary="Нажмите, чтобы выдать. Нужно для работы авто-оверлея (распознавание открытых окон)" />
+
+        <Preference
+            app:key="request_accessibility"
+            app:title="(Опционально) Включить спец. возможности"
+            app:summary="Нажмите, чтобы включить Flyme Tweak. Это сделает появление кнопок мгновенным без задержек" />
     </PreferenceCategory>
 
     <Preference
