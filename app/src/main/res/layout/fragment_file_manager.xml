@@ -38,6 +38,15 @@
                 android:text="/storage/emulated/0"
                 android:singleLine="true"
                 android:ellipsize="start" />
+
+            <ImageButton
+                android:id="@+id/btn_sort"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_sort_alphabetically"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="?android:attr/textColorPrimaryInverse"
+                android:contentDescription="Sort"/>
         </LinearLayout>
 
         <TextView

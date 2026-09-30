@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class FileManagerFragment extends Fragment {
@@ -46,9 +47,15 @@ public class FileManagerFragment extends Fragment {
     private TextView mainPathText, mainStorageInfo;
     private DrawerLayout drawerLayout;
     private NavigationView navigationView;
-    private ImageButton btnMenu;
+    private ImageButton btnMenu, btnSort;
 
     private File currentDir = Environment.getExternalStorageDirectory();
+
+    private enum SortType {
+        NAME, SIZE, DATE, TYPE
+    }
+    private SortType currentSortType = SortType.NAME;
+    private boolean sortAscending = true;
 
     @Nullable
     @Override
@@ -98,6 +105,10 @@ public class FileManagerFragment extends Fragment {
         drawerLayout = view.findViewById(R.id.drawer_layout);
         navigationView = view.findViewById(R.id.nav_view);
         btnMenu = view.findViewById(R.id.btn_menu);
+        btnSort = view.findViewById(R.id.btn_sort);
+
+        btnSort.setOnClickListener(v -> cycleSortType());
+        updateSortIcon();
 
         mainAdapter = new FileAdapter(
             file -> handleFileClick(file),
@@ -114,8 +125,18 @@ public class FileManagerFragment extends Fragment {
                 loadDirectory(new File("/"));
             } else if (id == R.id.nav_internal) {
                 loadDirectory(Environment.getExternalStorageDirectory());
-            } else if (id == R.id.nav_add_ftp || id == R.id.nav_add_sftp || id == R.id.nav_add_smb || id == R.id.nav_add_webdav) {
-                Toast.makeText(getContext(), "В разработке: добавление сетевого диска", Toast.LENGTH_SHORT).show();
+            } else if (id == R.id.nav_add_ftp) {
+                Toast.makeText(getContext(), "Будет добавлено позже: FTP", Toast.LENGTH_SHORT).show();
+            } else if (id == R.id.nav_add_sftp) {
+                Toast.makeText(getContext(), "Будет добавлено позже: SFTP", Toast.LENGTH_SHORT).show();
+            } else if (id == R.id.nav_add_smb) {
+                Toast.makeText(getContext(), "Будет добавлено позже: SMB", Toast.LENGTH_SHORT).show();
+            } else if (id == R.id.nav_add_webdav) {
+                Toast.makeText(getContext(), "Будет добавлено позже: WebDAV", Toast.LENGTH_SHORT).show();
+            } else if (id == R.id.nav_add_cloud) {
+                Toast.makeText(getContext(), "Будет добавлено позже: Облако", Toast.LENGTH_SHORT).show();
+            } else if (id == R.id.nav_add_storage) {
+                // Ignore, it's just a section header or can trigger a dialog in future
             }
             drawerLayout.closeDrawer(GravityCompat.START);
             return true;
@@ -132,9 +153,8 @@ public class FileManagerFragment extends Fragment {
             "Копировать", "Вырезать", "Удалить", "Переименовать", "Свойства"
         ));
         if (isApk) {
-            optionsList.add("Установить");
-            optionsList.add("Установить (Root/Shizuku)");
-            optionsList.add("Установить (Local ADB/Root)");
+            optionsList.add("Установить (Системный установщик)");
+            optionsList.add("Установить (Local ADB / Shizuku)");
         }
 
         String[] options = optionsList.toArray(new String[0]);
@@ -166,14 +186,11 @@ public class FileManagerFragment extends Fragment {
                     case "Свойства":
                         showPropertiesDialog(file);
                         break;
-                    case "Установить":
+                    case "Установить (Системный установщик)":
                         openFile(file); // reuse existing logic
                         break;
-                    case "Установить (Root/Shizuku)":
+                    case "Установить (Local ADB / Shizuku)":
                         installApkWithShizuku(file);
-                        break;
-                    case "Установить (Local ADB/Root)":
-                        installApkWithLocalAdb(file);
                         break;
                 }
             })
@@ -226,52 +243,10 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void installApkWithLocalAdb(File file) {
-        Toast.makeText(getContext(), "Начинаю установку через ADB/Root...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                // First try with su (Root), if that fails, try with normal sh (Local ADB/Shell)
-                Process process = Runtime.getRuntime().exec("su");
-                java.io.DataOutputStream os = new java.io.DataOutputStream(process.getOutputStream());
-                os.writeBytes("pm install -r \"" + file.getAbsolutePath() + "\"\n");
-                os.writeBytes("exit\n");
-                os.flush();
-
-                int exitValue = process.waitFor();
-
-                if (exitValue != 0) {
-                    // Try without root if SU failed
-                    Process noRootProcess = Runtime.getRuntime().exec(new String[]{"sh", "-c", "pm install -r \"" + file.getAbsolutePath() + "\""});
-                    exitValue = noRootProcess.waitFor();
-
-                    java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(noRootProcess.getInputStream()));
-                    String line;
-                    StringBuilder output = new StringBuilder();
-                    while ((line = reader.readLine()) != null) {
-                        output.append(line).append("\n");
-                    }
-
-                    final String result = output.toString().trim();
-                    final boolean success = exitValue == 0 && result.toLowerCase().contains("success");
-
-                    getActivity().runOnUiThread(() -> {
-                        if (success) {
-                            Toast.makeText(getContext(), "Приложение успешно установлено (Shell)!", Toast.LENGTH_LONG).show();
-                        } else {
-                            Toast.makeText(getContext(), "Ошибка установки (Shell): " + result, Toast.LENGTH_LONG).show();
-                        }
-                    });
-                } else {
-                    getActivity().runOnUiThread(() -> {
-                        Toast.makeText(getContext(), "Приложение успешно установлено (Root)!", Toast.LENGTH_LONG).show();
-                    });
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-                getActivity().runOnUiThread(() -> {
-                    Toast.makeText(getContext(), "Ошибка выполнения команды: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
-            }
-        }).start();
+        // Мы используем Shizuku как самый надежный метод "Local ADB" (Wireless Debugging) или Root.
+        // Если устройство не имеет Root и Shizuku не настроен/не запущен, мы не сможем установить
+        // приложение в фоне.
+        installApkWithShizuku(file);
     }
 
     private void installApkWithShizuku(File file) {
@@ -340,33 +315,61 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void showPropertiesDialog(File file) {
-        long size = getFolderSize(file);
-        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault());
-        String date = sdf.format(new java.util.Date(file.lastModified()));
+        Toast.makeText(getContext(), "Подсчет размера...", Toast.LENGTH_SHORT).show();
 
-        String info = "Путь: " + file.getAbsolutePath() + "\n" +
-                      "Размер: " + FileAdapter.formatSize(size) + "\n" +
-                      "Изменен: " + date + "\n" +
-                      (file.isDirectory() ? "Тип: Папка" : "Тип: Файл");
+        new Thread(() -> {
+            long[] sizeAndCount = getFolderSizeAndCount(file);
+            long size = sizeAndCount[0];
+            long count = sizeAndCount[1];
 
-        new AlertDialog.Builder(requireContext())
-            .setTitle("Свойства")
-            .setMessage(info)
-            .setPositiveButton("ОК", null)
-            .show();
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault());
+            String date = sdf.format(new java.util.Date(file.lastModified()));
+
+            StringBuilder info = new StringBuilder();
+            info.append("Путь: ").append(file.getAbsolutePath()).append("\n");
+            info.append("Размер: ").append(FileAdapter.formatSize(size)).append("\n");
+            info.append("Изменен: ").append(date).append("\n");
+
+            if (file.isDirectory()) {
+                info.append("Тип: Папка\n");
+                info.append("Содержит: ").append(count).append(" файлов/папок");
+            } else {
+                info.append("Тип: Файл");
+            }
+
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    new AlertDialog.Builder(requireContext())
+                        .setTitle("Свойства")
+                        .setMessage(info.toString())
+                        .setPositiveButton("ОК", null)
+                        .show();
+                });
+            }
+        }).start();
     }
 
-    private long getFolderSize(File file) {
-        if (!file.exists()) return 0;
-        if (!file.isDirectory()) return file.length();
+    // Returns [size, fileCount]
+    private long[] getFolderSizeAndCount(File file) {
+        if (!file.exists()) return new long[]{0, 0};
+        if (!file.isDirectory()) return new long[]{file.length(), 0};
+
         long size = 0;
+        long count = 0;
         File[] files = file.listFiles();
         if (files != null) {
+            count += files.length;
             for (File f : files) {
-                size += getFolderSize(f);
+                if (f.isDirectory()) {
+                    long[] sub = getFolderSizeAndCount(f);
+                    size += sub[0];
+                    count += sub[1];
+                } else {
+                    size += f.length();
+                }
             }
         }
-        return size;
+        return new long[]{size, count};
     }
 
     private boolean copySingleFile(File source, File dest) {
@@ -486,15 +489,88 @@ public class FileManagerFragment extends Fragment {
         File[] filesArray = dir.listFiles();
         List<File> filesList = new ArrayList<>();
 
-        if (dir.getParentFile() != null) {
-            filesList.add(new File(dir, ".."));
-        }
-
         if (filesArray != null) {
             filesList.addAll(Arrays.asList(filesArray));
+            sortFiles(filesList);
+        }
+
+        // Add ".." back button always at the top
+        if (dir.getParentFile() != null) {
+            filesList.add(0, new File(dir, ".."));
         }
 
         mainAdapter.setFiles(filesList);
+    }
+
+    private void cycleSortType() {
+        SortType[] types = SortType.values();
+        int nextOrdinal = (currentSortType.ordinal() + 1) % types.length;
+        if (nextOrdinal == 0) {
+            // Если вернулись к NAME, меняем направление
+            sortAscending = !sortAscending;
+        }
+        currentSortType = types[nextOrdinal];
+        updateSortIcon();
+        refreshPanel();
+    }
+
+    private void updateSortIcon() {
+        if (btnSort == null) return;
+        switch (currentSortType) {
+            case NAME:
+                btnSort.setImageResource(android.R.drawable.ic_menu_sort_alphabetically);
+                break;
+            case SIZE:
+                btnSort.setImageResource(android.R.drawable.ic_menu_sort_by_size);
+                break;
+            case DATE:
+                btnSort.setImageResource(android.R.drawable.ic_menu_recent_history); // or some date icon
+                break;
+            case TYPE:
+                btnSort.setImageResource(android.R.drawable.ic_menu_agenda); // icon representing type/category
+                break;
+        }
+        // If descending, we could theoretically rotate the icon, but basic visual is enough for now
+        btnSort.setRotation(sortAscending ? 0 : 180);
+    }
+
+    private void sortFiles(List<File> list) {
+        Collections.sort(list, (f1, f2) -> {
+            // Folders first
+            if (f1.isDirectory() && !f2.isDirectory()) return -1;
+            if (!f1.isDirectory() && f2.isDirectory()) return 1;
+
+            int result = 0;
+            switch (currentSortType) {
+                case NAME:
+                    result = f1.getName().compareToIgnoreCase(f2.getName());
+                    break;
+                case SIZE:
+                    result = Long.compare(f1.length(), f2.length());
+                    break;
+                case DATE:
+                    result = Long.compare(f1.lastModified(), f2.lastModified());
+                    break;
+                case TYPE:
+                    String ext1 = getFileExtension(f1);
+                    String ext2 = getFileExtension(f2);
+                    result = ext1.compareToIgnoreCase(ext2);
+                    if (result == 0) {
+                        result = f1.getName().compareToIgnoreCase(f2.getName());
+                    }
+                    break;
+            }
+            return sortAscending ? result : -result;
+        });
+    }
+
+    private String getFileExtension(File file) {
+        String name = file.getName();
+        int lastIndexOf = name.lastIndexOf(".");
+        if (lastIndexOf == -1) {
+            return "";
+        }
+        return name.substring(lastIndexOf);
     }
 
     private void updateStorageInfo(File dir, TextView infoView) {
