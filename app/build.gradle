@@ -30,8 +30,10 @@ android {
         release {
             minifyEnabled true
             shrinkResources true
-            // only apply release signing if the file actually exists
-            if (file(System.getenv("KEYSTORE_PATH") ?: "keystore.jks").exists()) {
+
+            def keystoreFile = file(System.getenv("KEYSTORE_PATH") ?: "keystore.jks")
+            // only apply release signing if the file actually exists and is not empty
+            if (keystoreFile.exists() && keystoreFile.length() > 0) {
                 signingConfig signingConfigs.release
             } else {
                 signingConfig signingConfigs.debug
