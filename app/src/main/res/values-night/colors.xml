@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bottomNavBackground">#121212</color>
+    <color name="bottomNavIconColor">#AAAAAA</color>
+    <color name="bottomNavIconColorActive">#BB86FC</color>
+</resources>
