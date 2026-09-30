@@ -145,33 +145,75 @@ public class FileManagerFragment extends Fragment {
 
     private File fileInClipboard = null;
     private boolean isCutOperation = false;
+    private List<File> filesInClipboard = null; // for multi-select
 
     private void showFileOperationsDialog(File file) {
         boolean isApk = file.getName().toLowerCase().endsWith(".apk");
 
-        List<String> optionsList = new ArrayList<>(Arrays.asList(
-            "Копировать", "Вырезать", "Удалить", "Переименовать", "Свойства"
-        ));
-        if (isApk) {
-            optionsList.add("Установить (Системный установщик)");
-            optionsList.add("Установить (Local ADB / Shizuku)");
+        java.util.Set<File> selected = mainAdapter.getSelectedFiles();
+        boolean isMultiSelect = !selected.isEmpty();
+
+        List<String> optionsList = new ArrayList<>();
+        if (isMultiSelect) {
+            optionsList.addAll(Arrays.asList(
+                "Копировать выбранные", "Вырезать выбранные", "Удалить выбранные", "Снять выделение"
+            ));
+        } else {
+            optionsList.addAll(Arrays.asList(
+                "Выбрать", "Копировать", "Вырезать", "Удалить", "Переименовать", "Свойства"
+            ));
+            if (isApk) {
+                optionsList.add("Установить (Системный установщик)");
+                optionsList.add("Установить (Local ADB / Shizuku)");
+            }
         }
 
         String[] options = optionsList.toArray(new String[0]);
 
         new AlertDialog.Builder(requireContext())
-            .setTitle(file.getName())
+            .setTitle(isMultiSelect ? ("Выбрано файлов: " + selected.size()) : file.getName())
             .setItems(options, (dialog, which) -> {
                 String selectedOption = options[which];
                 switch (selectedOption) {
+                    case "Снять выделение":
+                        mainAdapter.clearSelection();
+                        break;
+                    case "Выбрать":
+                        mainAdapter.toggleSelection(file);
+                        break;
+                    case "Копировать выбранные":
+                        filesInClipboard = new ArrayList<>(selected);
+                        fileInClipboard = null;
+                        isCutOperation = false;
+                        mainAdapter.clearSelection();
+                        Toast.makeText(getContext(), "Файлы скопированы. Перейдите в нужную папку и вставьте.", Toast.LENGTH_SHORT).show();
+                        getActivity().invalidateOptionsMenu();
+                        break;
+                    case "Вырезать выбранные":
+                        filesInClipboard = new ArrayList<>(selected);
+                        fileInClipboard = null;
+                        isCutOperation = true;
+                        mainAdapter.clearSelection();
+                        Toast.makeText(getContext(), "Файлы вырезаны. Перейдите в нужную папку и вставьте.", Toast.LENGTH_SHORT).show();
+                        getActivity().invalidateOptionsMenu();
+                        break;
+                    case "Удалить выбранные":
+                        for (File f : selected) {
+                            deleteFileRecursive(f);
+                        }
+                        mainAdapter.clearSelection();
+                        refreshPanel();
+                        break;
                     case "Копировать":
                         fileInClipboard = file;
+                        filesInClipboard = null;
                         isCutOperation = false;
                         Toast.makeText(getContext(), "Файл скопирован. Перейдите в нужную папку и вставьте.", Toast.LENGTH_SHORT).show();
                         getActivity().invalidateOptionsMenu(); // Signal to show paste button
                         break;
                     case "Вырезать":
                         fileInClipboard = file;
+                        filesInClipboard = null;
                         isCutOperation = true;
                         Toast.makeText(getContext(), "Файл вырезан. Перейдите в нужную папку и вставьте.", Toast.LENGTH_SHORT).show();
                         getActivity().invalidateOptionsMenu(); // Signal to show paste button
@@ -190,7 +232,7 @@ public class FileManagerFragment extends Fragment {
                         openFile(file); // reuse existing logic
                         break;
                     case "Установить (Local ADB / Shizuku)":
-                        installApkWithShizuku(file);
+                        installApkWithLocalAdb(file);
                         break;
                 }
             })
@@ -198,42 +240,58 @@ public class FileManagerFragment extends Fragment {
     }
 
     public boolean hasFileInClipboard() {
-        return fileInClipboard != null;
+        return fileInClipboard != null || (filesInClipboard != null && !filesInClipboard.isEmpty());
     }
 
     // Add paste capability
     public void pasteFile() {
-        if (fileInClipboard == null || !fileInClipboard.exists()) {
-            Toast.makeText(getContext(), "Буфер пуст или файл удален", Toast.LENGTH_SHORT).show();
-            fileInClipboard = null;
+        if (!hasFileInClipboard()) {
+            Toast.makeText(getContext(), "Буфер пуст", Toast.LENGTH_SHORT).show();
             getActivity().invalidateOptionsMenu();
             return;
         }
 
-        File targetFile = new File(currentDir, fileInClipboard.getName());
+        List<File> filesToPaste = new ArrayList<>();
+        if (filesInClipboard != null) {
+            filesToPaste.addAll(filesInClipboard);
+        } else if (fileInClipboard != null) {
+            filesToPaste.add(fileInClipboard);
+        }
 
         new Thread(() -> {
-            boolean success = false;
-            try {
-                if (fileInClipboard.isDirectory()) {
-                    success = copyDirectory(fileInClipboard, targetFile);
-                } else {
-                    success = copySingleFile(fileInClipboard, targetFile);
-                }
+            boolean overallSuccess = true;
+            for (File src : filesToPaste) {
+                if (!src.exists()) continue;
+                File targetFile = new File(currentDir, src.getName());
+                boolean success = false;
+                try {
+                    if (src.isDirectory()) {
+                        success = copyDirectory(src, targetFile);
+                    } else {
+                        success = copySingleFile(src, targetFile);
+                    }
 
-                if (success && isCutOperation) {
-                    deleteFileRecursive(fileInClipboard);
-                    fileInClipboard = null; // Clear clipboard after move
+                    if (success && isCutOperation) {
+                        deleteFileRecursive(src);
+                    } else if (!success) {
+                        overallSuccess = false;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    overallSuccess = false;
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
 
-            final boolean finalSuccess = success;
+            if (isCutOperation) {
+                fileInClipboard = null;
+                filesInClipboard = null;
+            }
+
+            final boolean finalSuccess = overallSuccess;
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
-                    Toast.makeText(getContext(), finalSuccess ? "Успешно вставлено" : "Ошибка вставки", Toast.LENGTH_SHORT).show();
-                    if (finalSuccess && isCutOperation) {
+                    Toast.makeText(getContext(), finalSuccess ? "Успешно вставлено" : "Некоторые файлы не удалось вставить", Toast.LENGTH_SHORT).show();
+                    if (isCutOperation) {
                         getActivity().invalidateOptionsMenu();
                     }
                     refreshPanel();
@@ -243,9 +301,12 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void installApkWithLocalAdb(File file) {
-        // Мы используем Shizuku как самый надежный метод "Local ADB" (Wireless Debugging) или Root.
-        // Если устройство не имеет Root и Shizuku не настроен/не запущен, мы не сможем установить
-        // приложение в фоне.
+        // Fallback: If Shizuku is not running, we either try shell or fallback to the system installer.
+        if (!rikka.shizuku.Shizuku.pingBinder()) {
+            Toast.makeText(getContext(), "Shizuku не запущен. Открываем системный установщик...", Toast.LENGTH_SHORT).show();
+            openFile(file); // Fallback to standard installation intent
+            return;
+        }
         installApkWithShizuku(file);
     }
 
