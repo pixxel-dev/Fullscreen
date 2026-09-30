@@ -2,6 +2,12 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_paste"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="Вставить"
+        app:showAsAction="always"
+        android:visible="false" />
+    <item
         android:id="@+id/action_theme_toggle"
         android:icon="@drawable/ic_brightness"
         android:title="Сменить тему"

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:id="@+id/group_storage" android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_root"
+            android:icon="@android:drawable/ic_dialog_dialer"
+            android:title="Root" />
+        <item
+            android:id="@+id/nav_internal"
+            android:icon="@android:drawable/ic_menu_save"
+            android:title="Память устройства" />
+    </group>
+
+    <group android:id="@+id/group_add_storage">
+        <item
+            android:id="@+id/nav_add_storage"
+            android:title="Добавить накопитель..." />
+        <item
+            android:id="@+id/nav_add_ftp"
+            android:title="FTP сервер" />
+        <item
+            android:id="@+id/nav_add_sftp"
+            android:title="SFTP сервер" />
+        <item
+            android:id="@+id/nav_add_smb"
+            android:title="SMB сервер" />
+        <item
+            android:id="@+id/nav_add_webdav"
+            android:title="WebDAV сервер" />
+        <item
+            android:id="@+id/nav_add_cloud"
+            android:title="Облако" />
+    </group>
+</menu>
