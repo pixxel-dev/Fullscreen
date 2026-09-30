@@ -3,6 +3,7 @@ package com.flyme.fscrn;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.MimeTypeMap;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -19,14 +20,20 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
 
     private List<File> files = new ArrayList<>();
     private final OnFileClickListener listener;
+    private final OnFileLongClickListener longClickListener;
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
 
     public interface OnFileClickListener {
         void onFileClick(File file);
     }
 
-    public FileAdapter(OnFileClickListener listener) {
+    public interface OnFileLongClickListener {
+        void onFileLongClick(File file);
+    }
+
+    public FileAdapter(OnFileClickListener listener, OnFileLongClickListener longClickListener) {
         this.listener = listener;
+        this.longClickListener = longClickListener;
     }
 
     public void setFiles(List<File> newFiles) {
@@ -76,6 +83,18 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
                     listener.onFileClick(files.get(position));
                 }
             });
+
+            itemView.setOnLongClickListener(v -> {
+                int position = getAdapterPosition();
+                if (position != RecyclerView.NO_POSITION) {
+                    File clickedFile = files.get(position);
+                    if (!clickedFile.getName().equals("..")) {
+                        longClickListener.onFileLongClick(clickedFile);
+                        return true;
+                    }
+                }
+                return false;
+            });
         }
 
         public void bind(File file) {
@@ -94,8 +113,40 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
                 iconView.setImageResource(R.drawable.ic_folder);
                 sizeView.setText("Папка");
             } else {
-                iconView.setImageResource(R.drawable.ic_file);
+                setFileIcon(file, iconView);
                 sizeView.setText(formatSize(file.length()));
+            }
+        }
+
+        private void setFileIcon(File file, ImageView iconView) {
+            String name = file.getName();
+            String ext = "";
+            int i = name.lastIndexOf('.');
+            if (i > 0 && i < name.length() - 1) {
+                ext = name.substring(i + 1).toLowerCase(Locale.US);
+            }
+
+            if (ext.equals("apk")) {
+                iconView.setImageResource(R.drawable.ic_file_apk);
+                return;
+            } else if (ext.equals("zip") || ext.equals("rar") || ext.equals("7z") || ext.equals("tar") || ext.equals("gz")) {
+                iconView.setImageResource(R.drawable.ic_file_archive);
+                return;
+            }
+
+            String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+            if (mimeType != null) {
+                if (mimeType.startsWith("image/")) {
+                    iconView.setImageResource(R.drawable.ic_file_image);
+                } else if (mimeType.startsWith("video/")) {
+                    iconView.setImageResource(R.drawable.ic_file_video);
+                } else if (mimeType.startsWith("audio/")) {
+                    iconView.setImageResource(R.drawable.ic_file_audio);
+                } else {
+                    iconView.setImageResource(R.drawable.ic_file);
+                }
+            } else {
+                iconView.setImageResource(R.drawable.ic_file);
             }
         }
     }
