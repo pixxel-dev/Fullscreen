@@ -38,11 +38,6 @@ public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder
 
     public void setFiles(List<File> newFiles) {
         this.files = newFiles;
-        Collections.sort(this.files, (f1, f2) -> {
-            if (f1.isDirectory() && !f2.isDirectory()) return -1;
-            if (!f1.isDirectory() && f2.isDirectory()) return 1;
-            return f1.getName().compareToIgnoreCase(f2.getName());
-        });
         notifyDataSetChanged();
     }
 

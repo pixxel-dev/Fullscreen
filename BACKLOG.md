@@ -19,3 +19,5 @@
 - Реализация системы проверки новых версий приложения через GitHub API (проверка тегов релизов).
 - Автоматическое (или по кнопке) скачивание APK-файла.
 - Инициализация установки обновления (через стандартный инсталлер Android или "тихо" через Shizuku, если будет реализован пункт 1).
+
+- Cloud Drives Integration (Yandex.Disk, Google Drive) inside FileManager via UI dialog/browser intents or API.
