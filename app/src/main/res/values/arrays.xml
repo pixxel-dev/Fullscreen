@@ -2,10 +2,12 @@
 <resources>
     <string-array name="position_entries">
         <item>Слева</item>
+        <item>По центру</item>
         <item>Справа</item>
     </string-array>
     <string-array name="position_values">
         <item>left</item>
+        <item>center</item>
         <item>right</item>
     </string-array>
 </resources>
