@@ -12,6 +12,7 @@ import android.widget.ArrayAdapter;
 import android.widget.CheckedTextView;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -47,19 +48,35 @@ public class SearchableMultiSelectListPreference extends MultiSelectListPreferen
         CharSequence[] entryValues = getEntryValues();
         Set<String> values = getValues();
 
+        String currentPackage = context.getPackageName();
+        boolean isFullscreenAppsList = "fullscreen_apps".equals(getKey());
+
         List<AppItem> allItems = new ArrayList<>();
         if (entries != null && entryValues != null) {
             for (int i = 0; i < entries.length; i++) {
-                allItems.add(new AppItem(entries[i].toString(), entryValues[i].toString(), values.contains(entryValues[i].toString())));
+                String value = entryValues[i].toString();
+                boolean isChecked = values.contains(value);
+
+                // Force check current app if this is the fullscreen apps list
+                if (isFullscreenAppsList && currentPackage.equals(value)) {
+                    isChecked = true;
+                }
+
+                allItems.add(new AppItem(entries[i].toString(), value, isChecked));
             }
         }
 
-        AppAdapter adapter = new AppAdapter(context, allItems);
+        AppAdapter adapter = new AppAdapter(context, allItems, isFullscreenAppsList, currentPackage);
         listView.setAdapter(adapter);
 
         listView.setOnItemClickListener((parent, v, position, id) -> {
             AppItem item = adapter.getItem(position);
             if (item != null) {
+                // Prevent unchecking the current app in fullscreen list
+                if (isFullscreenAppsList && currentPackage.equals(item.value)) {
+                    Toast.makeText(context, "Приложение Flyme Tweak обязательно для работы авто-оверлея", Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 item.isChecked = !item.isChecked;
                 adapter.notifyDataSetChanged();
             }
@@ -88,6 +105,12 @@ public class SearchableMultiSelectListPreference extends MultiSelectListPreferen
                             newValues.add(item.value);
                         }
                     }
+
+                    // Double ensure the current app is included before saving
+                    if (isFullscreenAppsList) {
+                        newValues.add(currentPackage);
+                    }
+
                     if (callChangeListener(newValues)) {
                         setValues(newValues);
                     }
@@ -114,8 +137,13 @@ public class SearchableMultiSelectListPreference extends MultiSelectListPreferen
     }
 
     private static class AppAdapter extends ArrayAdapter<AppItem> {
-        AppAdapter(Context context, List<AppItem> items) {
+        private final boolean isFullscreenList;
+        private final String targetPackage;
+
+        AppAdapter(Context context, List<AppItem> items, boolean isFullscreenList, String targetPackage) {
             super(context, R.layout.app_list_item, items);
+            this.isFullscreenList = isFullscreenList;
+            this.targetPackage = targetPackage;
         }
 
         @NonNull
@@ -129,6 +157,13 @@ public class SearchableMultiSelectListPreference extends MultiSelectListPreferen
             if (item != null) {
                 checkedTextView.setText(item.label);
                 checkedTextView.setChecked(item.isChecked);
+
+                if (isFullscreenList && targetPackage.equals(item.value)) {
+                    // Make it look disabled but checked
+                    checkedTextView.setAlpha(0.5f);
+                } else {
+                    checkedTextView.setAlpha(1.0f);
+                }
             }
             return convertView;
         }
