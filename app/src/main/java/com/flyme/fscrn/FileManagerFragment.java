@@ -134,6 +134,7 @@ public class FileManagerFragment extends Fragment {
         if (isApk) {
             optionsList.add("Установить");
             optionsList.add("Установить (Root/Shizuku)");
+            optionsList.add("Установить (Local ADB/Root)");
         }
 
         String[] options = optionsList.toArray(new String[0]);
@@ -170,6 +171,9 @@ public class FileManagerFragment extends Fragment {
                         break;
                     case "Установить (Root/Shizuku)":
                         installApkWithShizuku(file);
+                        break;
+                    case "Установить (Local ADB/Root)":
+                        installApkWithLocalAdb(file);
                         break;
                 }
             })
@@ -216,6 +220,55 @@ public class FileManagerFragment extends Fragment {
                         getActivity().invalidateOptionsMenu();
                     }
                     refreshPanel();
+                });
+            }
+        }).start();
+    }
+
+    private void installApkWithLocalAdb(File file) {
+        Toast.makeText(getContext(), "Начинаю установку через ADB/Root...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                // First try with su (Root), if that fails, try with normal sh (Local ADB/Shell)
+                Process process = Runtime.getRuntime().exec("su");
+                java.io.DataOutputStream os = new java.io.DataOutputStream(process.getOutputStream());
+                os.writeBytes("pm install -r \"" + file.getAbsolutePath() + "\"\n");
+                os.writeBytes("exit\n");
+                os.flush();
+
+                int exitValue = process.waitFor();
+
+                if (exitValue != 0) {
+                    // Try without root if SU failed
+                    Process noRootProcess = Runtime.getRuntime().exec(new String[]{"sh", "-c", "pm install -r \"" + file.getAbsolutePath() + "\""});
+                    exitValue = noRootProcess.waitFor();
+
+                    java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(noRootProcess.getInputStream()));
+                    String line;
+                    StringBuilder output = new StringBuilder();
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                    }
+
+                    final String result = output.toString().trim();
+                    final boolean success = exitValue == 0 && result.toLowerCase().contains("success");
+
+                    getActivity().runOnUiThread(() -> {
+                        if (success) {
+                            Toast.makeText(getContext(), "Приложение успешно установлено (Shell)!", Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(getContext(), "Ошибка установки (Shell): " + result, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } else {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), "Приложение успешно установлено (Root)!", Toast.LENGTH_LONG).show();
+                    });
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                getActivity().runOnUiThread(() -> {
+                    Toast.makeText(getContext(), "Ошибка выполнения команды: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
         }).start();
