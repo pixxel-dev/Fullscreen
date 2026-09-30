@@ -9,7 +9,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.preference.MultiSelectListPreference;
+import com.flyme.fscrn.SearchableMultiSelectListPreference;
 import androidx.preference.PreferenceFragmentCompat;
 import com.flyme.fscrn.service.ForegroundOverlayService;
 import androidx.preference.Preference;
@@ -82,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private void populateAppsList(String key) {
-            MultiSelectListPreference listPreference = findPreference(key);
+            SearchableMultiSelectListPreference listPreference = findPreference(key);
             if (listPreference != null) {
                 PackageManager pm = requireContext().getPackageManager();
                 Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);

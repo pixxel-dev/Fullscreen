@@ -223,7 +223,15 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         }
 
         String positionX = prefs.getString("ql_position_x", "left");
-        quickLaunchParams.gravity = Gravity.TOP | ("right".equals(positionX) ? Gravity.END : Gravity.START);
+        int gravity = Gravity.TOP;
+        if ("right".equals(positionX)) {
+            gravity |= Gravity.END;
+        } else if ("center".equals(positionX)) {
+            gravity |= Gravity.CENTER_HORIZONTAL;
+        } else {
+            gravity |= Gravity.START;
+        }
+        quickLaunchParams.gravity = gravity;
         defaultWindowManager.updateViewLayout(quickLaunchView, quickLaunchParams);
     }
 
@@ -240,6 +248,18 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             iv.getLayoutParams().height = sizePx;
             fullscreenToggleParams.width = sizePx;
             fullscreenToggleParams.height = sizePx;
+
+            String positionX = prefs.getString("fs_position_x", "left");
+            int gravity = Gravity.TOP;
+            if ("right".equals(positionX)) {
+                gravity |= Gravity.END;
+            } else if ("center".equals(positionX)) {
+                gravity |= Gravity.CENTER_HORIZONTAL;
+            } else {
+                gravity |= Gravity.START;
+            }
+            fullscreenToggleParams.gravity = gravity;
+
             secondaryWindowManager.updateViewLayout(fullscreenToggleView, fullscreenToggleParams);
             return;
         }
@@ -257,7 +277,17 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
 
-        fullscreenToggleParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        String positionX = prefs.getString("fs_position_x", "left");
+        int gravity = Gravity.TOP;
+        if ("right".equals(positionX)) {
+            gravity |= Gravity.END;
+        } else if ("center".equals(positionX)) {
+            gravity |= Gravity.CENTER_HORIZONTAL;
+        } else {
+            gravity |= Gravity.START;
+        }
+        fullscreenToggleParams.gravity = gravity;
+
         fullscreenToggleParams.y = prefs.getInt("fs_position_y", 100);
 
         setupDragAndClick(fullscreenToggleView, fullscreenToggleParams, "fs_position_y", this::toggleFullscreen, secondaryWindowManager);
