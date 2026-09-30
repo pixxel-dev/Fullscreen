@@ -1,18 +1,20 @@
-name: Build Android APK
+name: Build and Release Android APK
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: set up JDK 17
       uses: actions/setup-java@v4
@@ -24,16 +26,14 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Set Version Code and Name based on Commit Count
+    - name: Get Versions
       id: vars
       run: |
         VERSION_CODE=$(git rev-list --count HEAD)
         echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
-        # Base version logic: 1.0.0
-        # Let's say major version is 1. Minor increments every 10 commits, patch every commit
-        # Actually, user wants manual SemVer via gradle, let's just stick to build.gradle for versionName
-        # and use git commit count for versionCode so it can always install over.
-        echo "VERSION_NAME=$(grep 'versionName ' app/build.gradle | grep -o "\".*\"" | tr -d '"' | head -1)" >> $GITHUB_ENV
+        VERSION_NAME=$(grep 'versionName ' app/build.gradle | grep -o "\".*\"" | tr -d '"' | head -1)
+        echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+        echo "TAG_NAME=v${VERSION_NAME}-build${VERSION_CODE}" >> $GITHUB_ENV
 
     - name: Decode Keystore
       env:
@@ -45,15 +45,24 @@ jobs:
           echo "No keystore secret found, skipping decode."
         fi
 
-    - name: Build with Gradle
+    - name: Build Release APK
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: ./gradlew assembleRelease -PversionCode=${{ env.VERSION_CODE }}
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
       with:
-        name: app-release.apk
-        path: app/build/outputs/apk/release/app-release.apk
+        tag_name: ${{ env.TAG_NAME }}
+        name: Release ${{ env.VERSION_NAME }} (Build ${{ env.VERSION_CODE }})
+        body: |
+          Auto-generated release for version ${{ env.VERSION_NAME }} (Build ${{ env.VERSION_CODE }})
+          * Commit: ${{ github.sha }}
+        files: app/build/outputs/apk/release/app-release.apk
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
