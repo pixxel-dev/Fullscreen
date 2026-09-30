@@ -17,20 +17,25 @@ android {
     signingConfigs {
         release {
             storeFile file(System.getenv("KEYSTORE_PATH") ?: "keystore.jks")
-            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "default_password"
             keyAlias System.getenv("KEY_ALIAS") ?: "key0"
-            keyPassword System.getenv("KEY_PASSWORD") ?: "android"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "default_password"
         }
     }
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.release
+            // Using default debug keystore
         }
         release {
             minifyEnabled true
             shrinkResources true
-            signingConfig signingConfigs.release
+            // only apply release signing if the file actually exists
+            if (file(System.getenv("KEYSTORE_PATH") ?: "keystore.jks").exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
