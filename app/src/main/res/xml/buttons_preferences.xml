@@ -1,44 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <PreferenceCategory app:title="Меню быстрого запуска">
-        <SwitchPreferenceCompat
-            app:key="quick_launch_enabled"
-            app:title="Постоянная кнопка-меню"
-            app:summary="Показывать плавающую кнопку для быстрого запуска приложений"
-            app:defaultValue="false" />
-
-        <MultiSelectListPreference
-            app:key="quick_launch_apps"
-            app:title="Приложения для меню"
-            app:summary="Выберите приложения для меню быстрого запуска"
-            app:dependency="quick_launch_enabled" />
-
-        <ListPreference
-            app:key="overlay_position_x"
-            app:title="Расположение меню"
-            app:summary="Выберите сторону экрана"
-            app:entries="@array/position_entries"
-            app:entryValues="@array/position_values"
-            app:defaultValue="left"
-            app:useSimpleSummaryProvider="true"
-            app:dependency="quick_launch_enabled" />
-    </PreferenceCategory>
-
-    <PreferenceCategory app:title="Авто-оверлей (На весь экран)">
-        <SwitchPreferenceCompat
-            app:key="fullscreen_overlay_enabled"
-            app:title="Включить службу авто-оверлея"
-            app:summary="Кнопка управления окном будет появляться поверх выбранных приложений"
-            app:defaultValue="false" />
-
-        <MultiSelectListPreference
-            app:key="fullscreen_apps"
-            app:title="Приложения для разворота"
-            app:summary="При открытии этих приложений будет появляться кнопка"
-            app:dependency="fullscreen_overlay_enabled" />
-    </PreferenceCategory>
 
     <PreferenceCategory app:title="Общие настройки">
         <SeekBarPreference
@@ -52,7 +13,6 @@
 
     <Preference
         app:key="app_info"
-        app:layout="@layout/pref_about"
-        app:selectable="false" />
-
+        app:title="О приложении"
+        app:summary="Версия: " />
 </PreferenceScreen>
