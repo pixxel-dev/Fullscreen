@@ -12,9 +12,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.SeekBar;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import com.flyme.fscrn.SearchableMultiSelectListPreference;
 import androidx.preference.PreferenceManager;
 import androidx.preference.PreferenceFragmentCompat;
@@ -26,13 +25,11 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private SharedPreferences sharedPreferences;
-    private static final String PREF_APP_BRIGHTNESS = "app_brightness";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
-        applyBrightness();
 
         setContentView(R.layout.activity_main);
 
@@ -54,13 +51,6 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
-    private void applyBrightness() {
-        float brightness = sharedPreferences.getFloat(PREF_APP_BRIGHTNESS, -1.0f); // -1.0 is system default
-        WindowManager.LayoutParams lp = getWindow().getAttributes();
-        lp.screenBrightness = brightness;
-        getWindow().setAttributes(lp);
-    }
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
@@ -69,48 +59,24 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_brightness) {
-            showBrightnessDialog();
+        if (item.getItemId() == R.id.action_theme_toggle) {
+            toggleTheme();
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
-    private void showBrightnessDialog() {
-        View dialogView = getLayoutInflater().inflate(R.layout.dialog_brightness, null);
-        SeekBar seekBar = dialogView.findViewById(R.id.brightness_seek_bar);
+    private void toggleTheme() {
+        boolean isNightMode = sharedPreferences.getBoolean(FlymeApp.PREF_NIGHT_MODE, false);
+        boolean newNightMode = !isNightMode;
 
-        float currentBrightness = sharedPreferences.getFloat(PREF_APP_BRIGHTNESS, -1.0f);
-        if (currentBrightness == -1.0f) {
-            seekBar.setProgress(100); // Default max if not set
+        sharedPreferences.edit().putBoolean(FlymeApp.PREF_NIGHT_MODE, newNightMode).apply();
+
+        if (newNightMode) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
         } else {
-            seekBar.setProgress((int) (currentBrightness * 100));
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         }
-
-        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                float brightness = progress / 100.0f;
-                if (brightness < 0.01f) brightness = 0.01f; // Prevent completely black screen
-
-                WindowManager.LayoutParams lp = getWindow().getAttributes();
-                lp.screenBrightness = brightness;
-                getWindow().setAttributes(lp);
-
-                sharedPreferences.edit().putFloat(PREF_APP_BRIGHTNESS, brightness).apply();
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
-
-        new AlertDialog.Builder(this)
-                .setView(dialogView)
-                .setPositiveButton("Закрыть", null)
-                .show();
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
