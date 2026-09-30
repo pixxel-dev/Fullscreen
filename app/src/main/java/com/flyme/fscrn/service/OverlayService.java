@@ -9,10 +9,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.PixelFormat;
-import android.util.TypedValue;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.IBinder;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -30,36 +26,32 @@ import java.util.Collections;
 
 import com.flyme.fscrn.R;
 
-public class OverlayService extends Service {
-    private WindowManager windowManager;
-    private View overlayView;
-    private SharedPreferences prefs;
-    private boolean isFullscreenModeReady = false;
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
+
+    private void setupSecondaryDisplayContext() {
+        DisplayManager displayManager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
+        Display secondaryDisplay = displayManager.getDisplay(1003);
+        if (secondaryDisplay != null) {
+            secondaryContext = createDisplayContext(secondaryDisplay);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                secondaryContext = secondaryContext.createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null);
+            }
+            secondaryWindowManager = (WindowManager) secondaryContext.getSystemService(WINDOW_SERVICE);
+        } else {
+            // Fallback to primary if 1003 is not found
+            secondaryContext = this;
+            secondaryWindowManager = defaultWindowManager;
+        }
     }
 
     @Override
-    public void onCreate() {
-        super.onCreate();
-        createNotificationChannel();
-        Notification notification = new Notification.Builder(this, "overlay_channel")
-                .setContentTitle("Service running")
-                .setContentText("Displaying over other apps")
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .build();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+
         } else {
             startForeground(1, notification);
         }
     }
 
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        prefs = getSharedPreferences(getPackageName() + "_preferences", Context.MODE_PRIVATE);
+
 
         if (overlayView == null) {
             windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
@@ -80,19 +72,6 @@ public class OverlayService extends Service {
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
 
-            String positionX = prefs.getString("overlay_position_x", "left");
-            if ("right".equals(positionX)) {
-                params.gravity = Gravity.TOP | Gravity.END;
-            } else {
-                params.gravity = Gravity.TOP | Gravity.START;
-            }
-
-            params.x = 0;
-            params.y = prefs.getInt("position", 100);
-
-            windowManager.addView(overlayView, params);
-
-            overlayView.setOnClickListener(v -> launchApp());
 
             // Ensure child ImageView matches parent size
             View imageView = overlayView.findViewById(R.id.overlay_image_view);
@@ -141,19 +120,7 @@ public class OverlayService extends Service {
     private void launchApp() {
         Set<String> targetPackages = prefs.getStringSet("ihu_package", Collections.emptySet());
 
-        if (targetPackages.isEmpty()) {
-            Toast.makeText(this, "No app selected in settings!", Toast.LENGTH_SHORT).show();
-            return;
-        }
 
-        if (targetPackages.size() == 1) {
-            startPackage(targetPackages.iterator().next());
-        } else {
-            showAppSelectionDialog(new ArrayList<>(targetPackages));
-        }
-    }
-
-    private void startPackage(String targetPackage) {
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage(targetPackage);
         if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -171,10 +138,6 @@ public class OverlayService extends Service {
                 } else {
                     startActivity(launchIntent);
 
-                    // Enable fullscreen ready state
-                    isFullscreenModeReady = true;
-                    ImageView iv = overlayView.findViewById(R.id.overlay_image_view);
-                    if (iv != null) iv.setImageResource(R.drawable.ic_fullscreen);
                 }
             } catch (Exception e) {
                 startActivity(launchIntent);
@@ -210,24 +173,13 @@ public class OverlayService extends Service {
         dialog.show();
     }
 
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    "overlay_channel",
-                    "Background Service",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) manager.createNotificationChannel(channel);
-        }
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (overlayView != null && windowManager != null) {
-            windowManager.removeView(overlayView);
-            overlayView = null;
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (key != null) {
+            updateQuickLaunchButton();
+            updateFullscreenState();
         }
     }
 }
