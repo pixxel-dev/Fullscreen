@@ -58,6 +58,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem themeItem = menu.findItem(R.id.action_theme_toggle);
+        if (themeItem != null) {
+            boolean isNightMode = sharedPreferences.getBoolean(FlymeApp.PREF_NIGHT_MODE, false);
+            if (isNightMode) {
+                themeItem.setIcon(R.drawable.ic_moon);
+                themeItem.setTitle("Светлая тема");
+            } else {
+                themeItem.setIcon(R.drawable.ic_sun);
+                themeItem.setTitle("Темная тема");
+            }
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.action_theme_toggle) {
             toggleTheme();
@@ -77,6 +93,9 @@ public class MainActivity extends AppCompatActivity {
         } else {
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         }
+
+        // This will force the menu to be redrawn with the new icon
+        invalidateOptionsMenu();
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
