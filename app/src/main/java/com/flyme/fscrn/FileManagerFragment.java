@@ -13,13 +13,19 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -88,13 +94,123 @@ public class FileManagerFragment extends Fragment {
         rightStorageInfo = view.findViewById(R.id.right_storage_info);
         RecyclerView rightRecycler = view.findViewById(R.id.right_recycler_view);
 
-        leftAdapter = new FileAdapter(file -> handleFileClick(file, true));
+        leftAdapter = new FileAdapter(
+            file -> handleFileClick(file, true),
+            file -> showFileOperationsDialog(file, true)
+        );
         leftRecycler.setLayoutManager(new LinearLayoutManager(getContext()));
         leftRecycler.setAdapter(leftAdapter);
 
-        rightAdapter = new FileAdapter(file -> handleFileClick(file, false));
+        rightAdapter = new FileAdapter(
+            file -> handleFileClick(file, false),
+            file -> showFileOperationsDialog(file, false)
+        );
         rightRecycler.setLayoutManager(new LinearLayoutManager(getContext()));
         rightRecycler.setAdapter(rightAdapter);
+    }
+
+    private void showFileOperationsDialog(File file, boolean fromLeftPanel) {
+        String[] options = {"Копировать", "Переместить", "Удалить"};
+        new AlertDialog.Builder(requireContext())
+            .setTitle(file.getName())
+            .setItems(options, (dialog, which) -> {
+                switch (which) {
+                    case 0: // Copy
+                        performFileOperation(file, fromLeftPanel, false);
+                        break;
+                    case 1: // Move
+                        performFileOperation(file, fromLeftPanel, true);
+                        break;
+                    case 2: // Delete
+                        deleteFileRecursive(file);
+                        refreshBothPanels();
+                        break;
+                }
+            })
+            .show();
+    }
+
+    private void performFileOperation(File sourceFile, boolean fromLeftPanel, boolean isMove) {
+        File targetDir = fromLeftPanel ? currentRightDir : currentLeftDir;
+        if (targetDir == null || !targetDir.exists()) {
+            Toast.makeText(getContext(), "Целевая папка недоступна", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        File targetFile = new File(targetDir, sourceFile.getName());
+
+        new Thread(() -> {
+            boolean success = false;
+            try {
+                if (sourceFile.isDirectory()) {
+                    success = copyDirectory(sourceFile, targetFile);
+                } else {
+                    success = copySingleFile(sourceFile, targetFile);
+                }
+
+                if (success && isMove) {
+                    deleteFileRecursive(sourceFile);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            final boolean finalSuccess = success;
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    Toast.makeText(getContext(), finalSuccess ? "Успешно" : "Ошибка операции", Toast.LENGTH_SHORT).show();
+                    refreshBothPanels();
+                });
+            }
+        }).start();
+    }
+
+    private boolean copySingleFile(File source, File dest) {
+        try (InputStream in = new FileInputStream(source); OutputStream out = new FileOutputStream(dest)) {
+            byte[] buf = new byte[1024];
+            int length;
+            while ((length = in.read(buf)) > 0) {
+                out.write(buf, 0, length);
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean copyDirectory(File sourceLocation, File targetLocation) {
+        if (sourceLocation.isDirectory()) {
+            if (!targetLocation.exists() && !targetLocation.mkdirs()) {
+                return false;
+            }
+            String[] children = sourceLocation.list();
+            if (children != null) {
+                for (String child : children) {
+                    boolean success = copyDirectory(new File(sourceLocation, child), new File(targetLocation, child));
+                    if (!success) return false;
+                }
+            }
+        } else {
+            return copySingleFile(sourceLocation, targetLocation);
+        }
+        return true;
+    }
+
+    private void deleteFileRecursive(File fileOrDirectory) {
+        if (fileOrDirectory.isDirectory()) {
+            File[] children = fileOrDirectory.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteFileRecursive(child);
+                }
+            }
+        }
+        fileOrDirectory.delete();
+    }
+
+    private void refreshBothPanels() {
+        loadDirectory(currentLeftDir, true);
+        loadDirectory(currentRightDir, false);
     }
 
     private void handleFileClick(File file, boolean isLeftPanel) {
