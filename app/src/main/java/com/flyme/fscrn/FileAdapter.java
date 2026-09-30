@@ -1,0 +1,109 @@
+package com.flyme.fscrn;
+
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+
+public class FileAdapter extends RecyclerView.Adapter<FileAdapter.FileViewHolder> {
+
+    private List<File> files = new ArrayList<>();
+    private final OnFileClickListener listener;
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+
+    public interface OnFileClickListener {
+        void onFileClick(File file);
+    }
+
+    public FileAdapter(OnFileClickListener listener) {
+        this.listener = listener;
+    }
+
+    public void setFiles(List<File> newFiles) {
+        this.files = newFiles;
+        Collections.sort(this.files, (f1, f2) -> {
+            if (f1.isDirectory() && !f2.isDirectory()) return -1;
+            if (!f1.isDirectory() && f2.isDirectory()) return 1;
+            return f1.getName().compareToIgnoreCase(f2.getName());
+        });
+        notifyDataSetChanged();
+    }
+
+    @NonNull
+    @Override
+    public FileViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_file, parent, false);
+        return new FileViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull FileViewHolder holder, int position) {
+        File file = files.get(position);
+        holder.bind(file);
+    }
+
+    @Override
+    public int getItemCount() {
+        return files.size();
+    }
+
+    class FileViewHolder extends RecyclerView.ViewHolder {
+        ImageView iconView;
+        TextView nameView;
+        TextView sizeView;
+        TextView dateView;
+
+        public FileViewHolder(@NonNull View itemView) {
+            super(itemView);
+            iconView = itemView.findViewById(R.id.item_icon);
+            nameView = itemView.findViewById(R.id.item_name);
+            sizeView = itemView.findViewById(R.id.item_size);
+            dateView = itemView.findViewById(R.id.item_date);
+
+            itemView.setOnClickListener(v -> {
+                int position = getAdapterPosition();
+                if (position != RecyclerView.NO_POSITION) {
+                    listener.onFileClick(files.get(position));
+                }
+            });
+        }
+
+        public void bind(File file) {
+            if (file.getName().equals("..")) {
+                nameView.setText("..");
+                iconView.setImageResource(R.drawable.ic_folder);
+                sizeView.setText("Наверх");
+                dateView.setText("");
+                return;
+            }
+
+            nameView.setText(file.getName());
+            dateView.setText(dateFormat.format(new Date(file.lastModified())));
+
+            if (file.isDirectory()) {
+                iconView.setImageResource(R.drawable.ic_folder);
+                sizeView.setText("Папка");
+            } else {
+                iconView.setImageResource(R.drawable.ic_file);
+                sizeView.setText(formatSize(file.length()));
+            }
+        }
+    }
+
+    public static String formatSize(long size) {
+        if (size <= 0) return "0 B";
+        final String[] units = new String[]{"B", "KB", "MB", "GB", "TB"};
+        int digitGroups = (int) (Math.log10(size) / Math.log10(1024));
+        return String.format(Locale.getDefault(), "%.1f %s", size / Math.pow(1024, digitGroups), units[digitGroups]);
+    }
+}
