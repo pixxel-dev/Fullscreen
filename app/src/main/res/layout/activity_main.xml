@@ -4,14 +4,6 @@
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Настройки Overlay"
-        android:textSize="24sp"
-        android:padding="16dp"
-        android:textStyle="bold"/>
-
     <FrameLayout
         android:id="@+id/settings_container"
         android:layout_width="match_parent"

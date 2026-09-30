@@ -191,7 +191,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             return;
         }
 
-        int sizeDp = prefs.getInt("button_size", 48);
+        int sizeDp = prefs.getInt("ql_button_size", 48);
         int sizePx = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
 
@@ -222,13 +222,13 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             quickLaunchParams.height = sizePx;
         }
 
-        String positionX = prefs.getString("overlay_position_x", "left");
+        String positionX = prefs.getString("ql_position_x", "left");
         quickLaunchParams.gravity = Gravity.TOP | ("right".equals(positionX) ? Gravity.END : Gravity.START);
         defaultWindowManager.updateViewLayout(quickLaunchView, quickLaunchParams);
     }
 
     private void showFullscreenToggleButton() {
-        int sizeDp = prefs.getInt("button_size", 48);
+        int sizeDp = prefs.getInt("fs_button_size", 48);
         int sizePx = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
 
