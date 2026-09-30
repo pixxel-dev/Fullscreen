@@ -11,7 +11,7 @@ import android.provider.Settings;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.preference.MultiSelectListPreference;
 import androidx.preference.PreferenceFragmentCompat;
-import com.flyme.fscrn.service.OverlayService;
+import com.flyme.fscrn.service.ForegroundOverlayService;
 import androidx.preference.Preference;
 import android.content.pm.PackageInfo;
 import java.util.ArrayList;
@@ -28,29 +28,17 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         }
 
-        if (!isAccessibilityServiceEnabled(this, OverlayService.class)) {
-            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            startActivity(intent);
+        Intent serviceIntent = new Intent(this, ForegroundOverlayService.class);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
         }
 
         getSupportFragmentManager()
                 .beginTransaction()
                 .replace(R.id.settings_container, new SettingsFragment())
                 .commit();
-    }
-
-    private boolean isAccessibilityServiceEnabled(Context context, Class<?> accessibilityService) {
-        android.content.ComponentName expectedComponentName = new android.content.ComponentName(context, accessibilityService);
-        String enabledServicesSetting = Settings.Secure.getString(context.getContentResolver(),  Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (enabledServicesSetting == null) return false;
-        android.text.TextUtils.SimpleStringSplitter colonSplitter = new android.text.TextUtils.SimpleStringSplitter(':');
-        colonSplitter.setString(enabledServicesSetting);
-        while (colonSplitter.hasNext()) {
-            String componentNameString = colonSplitter.next();
-            android.content.ComponentName enabledService = android.content.ComponentName.unflattenFromString(componentNameString);
-            if (enabledService != null && enabledService.equals(expectedComponentName)) return true;
-        }
-        return false;
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
@@ -60,6 +48,24 @@ public class MainActivity extends AppCompatActivity {
             populateAppsList("quick_launch_apps");
             populateAppsList("fullscreen_apps");
             setupAppInfo();
+
+            Preference usageStatsPref = findPreference("request_usage_stats");
+            if (usageStatsPref != null) {
+                usageStatsPref.setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                    startActivity(intent);
+                    return true;
+                });
+            }
+
+            Preference accessStatsPref = findPreference("request_accessibility");
+            if (accessStatsPref != null) {
+                accessStatsPref.setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                    startActivity(intent);
+                    return true;
+                });
+            }
         }
 
         private void setupAppInfo() {
@@ -111,12 +117,12 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
             if ("quick_launch_enabled".equals(key) || "overlay_position_x".equals(key) || "button_size".equals(key)) {
-                OverlayService service = OverlayService.getInstance();
+                ForegroundOverlayService service = ForegroundOverlayService.getInstance();
                 if (service != null) {
                     service.updateQuickLaunchButton();
                 }
             } else if ("fullscreen_overlay_enabled".equals(key) || "fullscreen_apps".equals(key)) {
-                OverlayService service = OverlayService.getInstance();
+                ForegroundOverlayService service = ForegroundOverlayService.getInstance();
                 if (service != null) {
                     service.updateFullscreenState();
                 }

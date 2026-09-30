@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"/>
 
     <application
         android:allowBackup="true"
@@ -25,7 +26,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Main Service that handles drawing -->
+        <service
+            android:name=".service.ForegroundOverlayService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
 
+        <!-- Optional Accessibility Service for faster event delivery -->
         <service
             android:name=".service.OverlayService"
             android:enabled="true"
