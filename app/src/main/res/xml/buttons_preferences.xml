@@ -24,15 +24,6 @@
             app:defaultValue="left"
             app:useSimpleSummaryProvider="true"
             app:dependency="quick_launch_enabled" />
-
-        <SeekBarPreference
-            app:key="button_size"
-            app:title="Размер кнопки"
-            app:min="30"
-            android:max="150"
-            app:defaultValue="48"
-            app:showSeekBarValue="true"
-            app:dependency="quick_launch_enabled" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Авто-оверлей (На весь экран)">
@@ -47,6 +38,16 @@
             app:title="Приложения для разворота"
             app:summary="При открытии этих приложений будет появляться кнопка"
             app:dependency="fullscreen_overlay_enabled" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Общие настройки">
+        <SeekBarPreference
+            app:key="button_size"
+            app:title="Размер кнопок"
+            app:min="30"
+            android:max="150"
+            app:defaultValue="48"
+            app:showSeekBarValue="true" />
     </PreferenceCategory>
 
     <Preference
