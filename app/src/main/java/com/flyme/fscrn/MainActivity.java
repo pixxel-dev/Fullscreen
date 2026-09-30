@@ -28,17 +28,37 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         }
 
+        if (!isAccessibilityServiceEnabled(this, OverlayService.class)) {
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            startActivity(intent);
+        }
+
         getSupportFragmentManager()
                 .beginTransaction()
                 .replace(R.id.settings_container, new SettingsFragment())
                 .commit();
     }
 
+    private boolean isAccessibilityServiceEnabled(Context context, Class<?> accessibilityService) {
+        android.content.ComponentName expectedComponentName = new android.content.ComponentName(context, accessibilityService);
+        String enabledServicesSetting = Settings.Secure.getString(context.getContentResolver(),  Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        if (enabledServicesSetting == null) return false;
+        android.text.TextUtils.SimpleStringSplitter colonSplitter = new android.text.TextUtils.SimpleStringSplitter(':');
+        colonSplitter.setString(enabledServicesSetting);
+        while (colonSplitter.hasNext()) {
+            String componentNameString = colonSplitter.next();
+            android.content.ComponentName enabledService = android.content.ComponentName.unflattenFromString(componentNameString);
+            if (enabledService != null && enabledService.equals(expectedComponentName)) return true;
+        }
+        return false;
+    }
+
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
         @Override
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
             setPreferencesFromResource(R.xml.buttons_preferences, rootKey);
-            populateAppsList();
+            populateAppsList("quick_launch_apps");
+            populateAppsList("fullscreen_apps");
             setupAppInfo();
         }
 
@@ -55,8 +75,8 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        private void populateAppsList() {
-            MultiSelectListPreference listPreference = findPreference("ihu_package");
+        private void populateAppsList(String key) {
+            MultiSelectListPreference listPreference = findPreference(key);
             if (listPreference != null) {
                 PackageManager pm = requireContext().getPackageManager();
                 Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
@@ -90,17 +110,15 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if ("hud_enabled".equals(key) || "overlay_position_x".equals(key) || "button_size".equals(key)) {
-                boolean isEnabled = sharedPreferences.getBoolean("hud_enabled", false);
-                Intent serviceIntent = new Intent(requireContext(), OverlayService.class);
-                if (isEnabled) {
-                    // Stop and start to apply visual changes immediately
-                    if ("overlay_position_x".equals(key) || "button_size".equals(key)) {
-                        requireContext().stopService(serviceIntent);
-                    }
-                    requireContext().startForegroundService(serviceIntent);
-                } else {
-                    requireContext().stopService(serviceIntent);
+            if ("quick_launch_enabled".equals(key) || "overlay_position_x".equals(key) || "button_size".equals(key)) {
+                OverlayService service = OverlayService.getInstance();
+                if (service != null) {
+                    service.updateQuickLaunchButton();
+                }
+            } else if ("fullscreen_overlay_enabled".equals(key) || "fullscreen_apps".equals(key)) {
+                OverlayService service = OverlayService.getInstance();
+                if (service != null) {
+                    service.updateFullscreenState();
                 }
             }
         }
