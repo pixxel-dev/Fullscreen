@@ -22,6 +22,8 @@ import androidx.preference.Preference;
 import android.content.pm.PackageInfo;
 import java.util.ArrayList;
 import java.util.List;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import androidx.fragment.app.Fragment;
 
 public class MainActivity extends AppCompatActivity {
     private SharedPreferences sharedPreferences;
@@ -45,10 +47,27 @@ public class MainActivity extends AppCompatActivity {
             startService(serviceIntent);
         }
 
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.settings_container, new SettingsFragment())
-                .commit();
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setOnItemSelectedListener(item -> {
+            Fragment selectedFragment = null;
+            if (item.getItemId() == R.id.nav_tweaks) {
+                selectedFragment = new SettingsFragment();
+            } else if (item.getItemId() == R.id.nav_files) {
+                selectedFragment = new FileManagerFragment();
+            }
+            if (selectedFragment != null) {
+                getSupportFragmentManager()
+                        .beginTransaction()
+                        .replace(R.id.fragment_container, selectedFragment)
+                        .commit();
+            }
+            return true;
+        });
+
+        // Load default fragment
+        if (savedInstanceState == null) {
+            bottomNav.setSelectedItemId(R.id.nav_tweaks);
+        }
     }
 
     @Override
