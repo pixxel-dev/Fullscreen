@@ -139,9 +139,10 @@ public class ApkInstaller {
                 }
 
                 Intent intent = new Intent("com.flyme.fscrn.ACTION_INSTALL_COMPLETE");
+                intent.setPackage(context.getPackageName());
                 int flags = PendingIntent.FLAG_UPDATE_CURRENT;
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    flags |= PendingIntent.FLAG_MUTABLE;
+                    flags |= PendingIntent.FLAG_IMMUTABLE;
                 }
                 PendingIntent pendingIntent = PendingIntent.getBroadcast(context, sessionId, intent, flags);
                 session.commit(pendingIntent.getIntentSender());

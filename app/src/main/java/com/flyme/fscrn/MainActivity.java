@@ -197,9 +197,12 @@ public class MainActivity extends AppCompatActivity {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             String currentVersion = pInfo.versionName;
 
-            // Clean tags (e.g. v1.2.0-build123 -> 1.2.0)
-            String cleanTag = tag.replaceAll("[^0-9\\.]", "");
-            String cleanCurrent = currentVersion.replaceAll("[^0-9\\.]", "");
+            // Extract semantic version using regex (e.g., v1.2.0-build123 -> 1.2.0)
+            String cleanTag = tag.replaceAll("^v", "").split("-")[0];
+            String cleanCurrent = currentVersion.replaceAll("^v", "").split("-")[0];
+
+            cleanTag = cleanTag.replaceAll("[^0-9\\.]", "");
+            cleanCurrent = cleanCurrent.replaceAll("[^0-9\\.]", "");
 
             String[] tagParts = cleanTag.split("\\.");
             String[] currentParts = cleanCurrent.split("\\.");

@@ -572,16 +572,16 @@ public class FileManagerFragment extends Fragment {
         if (btnSort == null) return;
         switch (currentSortType) {
             case NAME:
-                btnSort.setImageResource(android.R.drawable.ic_menu_sort_alphabetically);
+                btnSort.setImageResource(R.drawable.ic_sort_alpha);
                 break;
             case SIZE:
-                btnSort.setImageResource(android.R.drawable.ic_menu_sort_by_size);
+                btnSort.setImageResource(R.drawable.ic_sort_size);
                 break;
             case DATE:
-                btnSort.setImageResource(android.R.drawable.ic_menu_recent_history); // or some date icon
+                btnSort.setImageResource(R.drawable.ic_sort_date); // or some date icon
                 break;
             case TYPE:
-                btnSort.setImageResource(android.R.drawable.ic_menu_agenda); // icon representing type/category
+                btnSort.setImageResource(R.drawable.ic_sort_type); // icon representing type/category
                 break;
         }
         // If descending, we could theoretically rotate the icon, but basic visual is enough for now
