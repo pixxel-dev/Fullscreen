@@ -43,13 +43,18 @@ public class NativeAdbHelper {
             serverPb.environment().put("TMPDIR", context.getCacheDir().getPath());
             serverPb.start().waitFor();
 
-            List<String> command = Arrays.asList(adbPath, "pair", "localhost:" + port, pairingCode);
+            List<String> command = Arrays.asList(adbPath, "pair", "localhost:" + port);
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.directory(context.getFilesDir());
             pb.environment().put("HOME", context.getFilesDir().getPath());
             pb.environment().put("TMPDIR", context.getCacheDir().getPath());
 
             Process process = pb.start();
+
+            // Пишем код сопряжения в stdin
+            java.io.PrintStream ps = new java.io.PrintStream(process.getOutputStream());
+            ps.println(pairingCode);
+            ps.flush();
 
             boolean finished = false;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -64,17 +69,10 @@ public class NativeAdbHelper {
                 return false;
             }
 
-            // Читаем вывод, чтобы проверить успешность
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            boolean success = false;
-            while ((line = reader.readLine()) != null) {
-                if (line.toLowerCase().contains("successfully paired")) {
-                    success = true;
-                }
-            }
-
-            return success || process.exitValue() == 0;
+            // Процесс pair от LADB обычно возвращает 0 при успехе.
+            // При использовании stdin он может не выдавать "successfully paired" в stdout,
+            // поэтому мы просто полагаемся на код возврата.
+            return process.exitValue() == 0;
 
         } catch (Exception e) {
             Log.e(TAG, "Pairing failed", e);
