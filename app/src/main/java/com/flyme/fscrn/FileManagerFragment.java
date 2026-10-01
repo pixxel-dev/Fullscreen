@@ -106,13 +106,6 @@ public class FileManagerFragment extends Fragment {
     public void onResume() {
         super.onResume();
 
-        IntentFilter filter = new IntentFilter("com.flyme.fscrn.ACTION_INSTALL_COMPLETE");
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            requireContext().registerReceiver(installReceiver, filter, Context.RECEIVER_EXPORTED);
-        } else {
-            requireContext().registerReceiver(installReceiver, filter);
-        }
-
         if (hasStoragePermission()) {
             loadDirectory(currentDir);
         } else if (!permissionRequested) {
@@ -123,8 +116,19 @@ public class FileManagerFragment extends Fragment {
     }
 
     @Override
-    public void onPause() {
-        super.onPause();
+    public void onStart() {
+        super.onStart();
+        IntentFilter filter = new IntentFilter("com.flyme.fscrn.ACTION_INSTALL_COMPLETE");
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            requireContext().registerReceiver(installReceiver, filter, Context.RECEIVER_EXPORTED);
+        } else {
+            requireContext().registerReceiver(installReceiver, filter);
+        }
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
         try {
             requireContext().unregisterReceiver(installReceiver);
         } catch (IllegalArgumentException ignored) {}
@@ -404,7 +408,7 @@ public class FileManagerFragment extends Fragment {
         Toast.makeText(getContext(), "Начинаю установку через Shizuku...", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             try {
-                Process process = rikka.shizuku.Shizuku.newProcess(new String[]{"pm", "install", "-r", file.getAbsolutePath()}, null, null);
+                Process process = rikka.shizuku.Shizuku.newProcess(new String[]{"pm", "install", "-r", "--user", "10", file.getAbsolutePath()}, null, null);
 
                 java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()));
                 String line;
