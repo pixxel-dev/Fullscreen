@@ -307,8 +307,28 @@ public class FileManagerFragment extends Fragment {
             return;
         }
 
-        // В противном случае пробуем Local ADB (TCP 5555) через AdbLib
-        Toast.makeText(getContext(), "Shizuku не запущен. Пробуем Local ADB (порт 5555)...", Toast.LENGTH_SHORT).show();
+        // 2. В противном случае пробуем Native TLS ADB (Android 11+)
+        if (NativeAdbHelper.isConnected()) {
+            Toast.makeText(getContext(), "Shizuku не запущен. Пробуем Native ADB (Android 11+)...", Toast.LENGTH_SHORT).show();
+            NativeAdbHelper.installApk(requireContext(), file, (success, message) -> {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
+                        if (!success) {
+                            tryLegacyLocalAdb(file);
+                        }
+                    });
+                }
+            });
+            return;
+        }
+
+        // 3. Fallback: Local ADB через AdbLib (Legacy port 5555)
+        tryLegacyLocalAdb(file);
+    }
+
+    private void tryLegacyLocalAdb(File file) {
+        Toast.makeText(getContext(), "Пробуем Local ADB (порт 5555)...", Toast.LENGTH_SHORT).show();
         LocalAdbHelper.installApk(requireContext(), file, (success, message) -> {
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
@@ -317,7 +337,7 @@ public class FileManagerFragment extends Fragment {
                     if (!success && message.contains("порт 5555")) {
                         new AlertDialog.Builder(requireContext())
                             .setTitle("Внимание")
-                            .setMessage("Отладка по Wi-Fi (Local ADB) отключена или недоступна. Открыть стандартный установщик?")
+                            .setMessage("Отладка по Wi-Fi отключена или недоступна. Открыть стандартный установщик?")
                             .setPositiveButton("Да", (d, w) -> openFile(file))
                             .setNegativeButton("Отмена", null)
                             .show();

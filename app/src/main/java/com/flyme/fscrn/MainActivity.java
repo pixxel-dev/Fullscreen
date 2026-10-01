@@ -153,6 +153,14 @@ public class MainActivity extends AppCompatActivity {
             populateAppsList("fullscreen_apps");
             setupAppInfo();
 
+            Preference adbPairingPref = findPreference("adb_pairing");
+            if (adbPairingPref != null) {
+                adbPairingPref.setOnPreferenceClickListener(preference -> {
+                    showAdbPairingDialog();
+                    return true;
+                });
+            }
+
             Preference usageStatsPref = findPreference("request_usage_stats");
             if (usageStatsPref != null) {
                 usageStatsPref.setOnPreferenceClickListener(preference -> {
@@ -170,6 +178,44 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 });
             }
+        }
+
+        private void showAdbPairingDialog() {
+            android.view.View view = getLayoutInflater().inflate(R.layout.dialog_adb_pairing, null);
+            com.google.android.material.textfield.TextInputEditText editPairingPort = view.findViewById(R.id.edit_pairing_port);
+            com.google.android.material.textfield.TextInputEditText editCode = view.findViewById(R.id.edit_code);
+            com.google.android.material.textfield.TextInputEditText editConnectionPort = view.findViewById(R.id.edit_connection_port);
+
+            new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("Сопряжение ADB (Android 11+)")
+                    .setView(view)
+                    .setPositiveButton("Соединить", (dialog, which) -> {
+                        String pairingPort = editPairingPort.getText() != null ? editPairingPort.getText().toString() : "";
+                        String code = editCode.getText() != null ? editCode.getText().toString() : "";
+                        String connectionPort = editConnectionPort.getText() != null ? editConnectionPort.getText().toString() : "";
+
+                        if (!pairingPort.isEmpty() && !code.isEmpty() && !connectionPort.isEmpty()) {
+                            new Thread(() -> {
+                                boolean pairSuccess = NativeAdbHelper.pair(requireContext(), pairingPort, code);
+                                if (pairSuccess) {
+                                    boolean connectSuccess = NativeAdbHelper.connect(requireContext(), connectionPort);
+                                    requireActivity().runOnUiThread(() -> {
+                                        android.widget.Toast.makeText(requireContext(),
+                                            connectSuccess ? "ADB успешно сопряжен и подключен!" : "Сопряжение прошло, но ошибка подключения.",
+                                            android.widget.Toast.LENGTH_LONG).show();
+                                    });
+                                } else {
+                                    requireActivity().runOnUiThread(() -> {
+                                        android.widget.Toast.makeText(requireContext(),
+                                            "Ошибка сопряжения.",
+                                            android.widget.Toast.LENGTH_LONG).show();
+                                    });
+                                }
+                            }).start();
+                        }
+                    })
+                    .setNegativeButton("Отмена", null)
+                    .show();
         }
 
         private void setupAppInfo() {
