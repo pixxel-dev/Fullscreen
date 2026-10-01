@@ -27,8 +27,26 @@ import androidx.fragment.app.Fragment;
 import androidx.preference.SeekBarPreference;
 import android.widget.Toast;
 
+import android.content.res.Configuration;
+
 public class MainActivity extends AppCompatActivity {
     private SharedPreferences sharedPreferences;
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(newBase);
+        int scalePercent = prefs.getInt("local_app_scale_percent", 100);
+
+        if (scalePercent != 100) {
+            Configuration config = new Configuration(newBase.getResources().getConfiguration());
+            float scale = scalePercent / 100.0f;
+            config.fontScale = scale;
+            config.densityDpi = (int) (newBase.getResources().getDisplayMetrics().densityDpi * scale);
+            super.attachBaseContext(newBase.createConfigurationContext(config));
+        } else {
+            super.attachBaseContext(newBase);
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -181,69 +199,13 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
-            Preference applyScalePref = findPreference("apply_ui_scale");
-            if (applyScalePref != null) {
-                applyScalePref.setOnPreferenceClickListener(preference -> {
-                    SeekBarPreference scalePref = findPreference("global_ui_scale");
-                    if (scalePref != null) {
-                        int density = scalePref.getValue();
-                        applyScreenDensity(density);
-                    }
+            SeekBarPreference localScalePref = findPreference("local_app_scale_percent");
+            if (localScalePref != null) {
+                localScalePref.setOnPreferenceChangeListener((preference, newValue) -> {
+                    Toast.makeText(getContext(), "Требуется перезапуск приложения для применения масштаба", Toast.LENGTH_LONG).show();
                     return true;
                 });
             }
-
-            Preference resetScalePref = findPreference("reset_ui_scale");
-            if (resetScalePref != null) {
-                resetScalePref.setOnPreferenceClickListener(preference -> {
-                    applyScreenDensity(-1); // -1 triggers reset
-                    return true;
-                });
-            }
-        }
-
-        private void applyScreenDensity(int density) {
-            new Thread(() -> {
-                String cmd = density > 0 ? "wm density " + density : "wm density reset";
-
-                boolean success = false;
-
-                if (rikka.shizuku.Shizuku.pingBinder()) {
-                    try {
-                        Process process = rikka.shizuku.Shizuku.newProcess(cmd.split(" "), null, null);
-                        process.waitFor();
-                        success = process.exitValue() == 0;
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                } else if (NativeAdbHelper.isConnected()) {
-                    success = NativeAdbHelper.executeCommand(getContext(), cmd);
-                } else {
-                    final boolean[] localSuccess = {false};
-                    java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
-                    LocalAdbHelper.executeShellCommand(getContext(), cmd, (s, msg) -> {
-                        localSuccess[0] = s;
-                        latch.countDown();
-                    });
-                    try {
-                        latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
-                        success = localSuccess[0];
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                final boolean finalSuccess = success;
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        if (finalSuccess) {
-                            Toast.makeText(getContext(), density > 0 ? "Масштаб применен: " + density : "Масштаб сброшен", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(getContext(), "Ошибка изменения масштаба. Проверьте ADB/Root", Toast.LENGTH_LONG).show();
-                        }
-                    });
-                }
-            }).start();
         }
 
         private void showAdbPairingDialog() {
