@@ -523,9 +523,12 @@ public class FileManagerFragment extends Fragment {
             intent.setDataAndType(uri, mimeType);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-            // Если это APK, возможно пользователь хочет его установить
+            // Если это APK, используем специализированный ACTION_INSTALL_PACKAGE для лучшей совместимости
             if (mimeType.equals("application/vnd.android.package-archive")) {
+                intent.setAction(Intent.ACTION_INSTALL_PACKAGE);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+                intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
             }
 
             if (intent.resolveActivity(requireContext().getPackageManager()) != null) {
