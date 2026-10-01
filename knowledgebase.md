@@ -27,3 +27,25 @@
    - Ссылка: https://github.com/zhanghai/MaterialFiles
 
 *(Документ будет пополняться по мере поступления новых ссылок и референсов от пользователя)*
+
+## ADB Команды для выдачи разрешений (Для работы плавающих окон на автомобиле)
+На некоторых автомобильных магнитолах (включая LynkCo) интерфейс выдачи прав может быть заблокирован. Чтобы приложение `Flyme Tweak` смогло отображать плавающие кнопки, необходимо выполнить следующие команды через ADB:
+
+**1. Выдача разрешения на отображение поверх других окон (SYSTEM_ALERT_WINDOW):**
+```bash
+adb shell appops set com.flyme.fscrn SYSTEM_ALERT_WINDOW allow
+```
+
+**2. (Опционально) Выдача разрешения на доступ к статистике использования (USAGE_STATS):**
+*Нужно для надежного отслеживания активных окон, если AccessibilityService отключен.*
+```bash
+adb shell pm grant com.flyme.fscrn android.permission.PACKAGE_USAGE_STATS
+adb shell appops set com.flyme.fscrn GET_USAGE_STATS allow
+```
+
+**3. (Опционально) Включение Службы Специальных Возможностей (AccessibilityService):**
+*Делает появление кнопок мгновенным без задержек.*
+```bash
+adb shell settings put secure enabled_accessibility_services com.flyme.fscrn/com.flyme.fscrn.service.OverlayService
+adb shell settings put secure accessibility_enabled 1
+```

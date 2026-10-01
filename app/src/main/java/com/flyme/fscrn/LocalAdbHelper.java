@@ -23,6 +23,10 @@ public class LocalAdbHelper {
     }
 
     public static void installApk(Context context, File apkFile, AdbListener listener) {
+        executeShellCommand(context, "pm install -r \"" + apkFile.getAbsolutePath() + "\"", listener);
+    }
+
+    public static void executeShellCommand(Context context, String command, AdbListener listener) {
         new Thread(() -> {
             Socket socket = null;
             AdbConnection connection = null;
@@ -44,7 +48,7 @@ public class LocalAdbHelper {
                 connection.connect();
 
                 // 4. Open shell stream and execute install command
-                stream = connection.open("shell:pm install -r \"" + apkFile.getAbsolutePath() + "\"");
+                stream = connection.open("shell:" + command);
 
                 StringBuilder output = new StringBuilder();
 
