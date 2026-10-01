@@ -23,7 +23,7 @@ public class LocalAdbHelper {
     }
 
     public static void installApk(Context context, File apkFile, AdbListener listener) {
-        executeShellCommand(context, "pm install -r \"" + apkFile.getAbsolutePath() + "\"", listener);
+        executeShellCommand(context, "pm install -r --user 10 \"" + apkFile.getAbsolutePath() + "\"", listener);
     }
 
     public static void executeShellCommand(Context context, String command, AdbListener listener) {

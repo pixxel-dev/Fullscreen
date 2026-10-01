@@ -131,7 +131,7 @@ public class NativeAdbHelper {
 
             try {
                 // Если у нас несколько устройств (например 5555 и TLS порт), указываем порт
-                List<String> command = Arrays.asList(adbPath, "-s", "localhost:" + currentConnectionPort, "install", "-r", apkFile.getAbsolutePath());
+                List<String> command = Arrays.asList(adbPath, "-s", "localhost:" + currentConnectionPort, "install", "-r", "--user", "10", apkFile.getAbsolutePath());
                 ProcessBuilder pb = new ProcessBuilder(command);
                 pb.directory(context.getFilesDir());
                 pb.environment().put("HOME", context.getFilesDir().getPath());

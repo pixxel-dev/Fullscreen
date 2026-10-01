@@ -52,8 +52,14 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     private View quickLaunchView;
     private WindowManager.LayoutParams quickLaunchParams;
 
+    private View quickLaunchViewSecondary;
+    private WindowManager.LayoutParams quickLaunchParamsSecondary;
+
     private View fullscreenToggleView;
     private WindowManager.LayoutParams fullscreenToggleParams;
+
+    private View fullscreenToggleViewSecondary;
+    private WindowManager.LayoutParams fullscreenToggleParamsSecondary;
 
     private boolean isTargetAppFullscreen = false;
     private String currentForegroundPackage = "";
@@ -155,7 +161,14 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     }
 
     private void handlePackageChange(String newPackage) {
-        if (!newPackage.equals(activeFullscreenPackage) && !newPackage.equals(getPackageName())) {
+        // Only reset fullscreen state if the new package isn't the active fullscreen package,
+        // isn't the overlay package itself, AND we are actually tracking an active fullscreen package.
+        // Also avoid resetting if the system launcher or system ui temporarily gains focus.
+        if (isTargetAppFullscreen
+                && !newPackage.equals(activeFullscreenPackage)
+                && !newPackage.equals(getPackageName())
+                && !newPackage.equals("com.android.launcher3")
+                && !newPackage.equals("com.android.systemui")) {
             isTargetAppFullscreen = false;
             activeFullscreenPackage = "";
         }
@@ -167,8 +180,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     private void checkFullscreenCondition() {
         Set<String> fullscreenApps = prefs.getStringSet("fullscreen_apps", Collections.emptySet());
         boolean isCurrentAppTarget = fullscreenApps.contains(currentForegroundPackage);
-        boolean shouldShowFullscreenBtn = prefs.getBoolean("fullscreen_overlay_enabled", false)
-                && (isCurrentAppTarget || (isTargetAppFullscreen && currentForegroundPackage.equals(getPackageName())));
+        boolean shouldShowFullscreenBtn = prefs.getBoolean("fullscreen_overlay_enabled", false) && isCurrentAppTarget;
 
         if (shouldShowFullscreenBtn || isTargetAppFullscreen) {
             showFullscreenToggleButton();
@@ -187,6 +199,10 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             if (quickLaunchView != null) {
                 defaultWindowManager.removeView(quickLaunchView);
                 quickLaunchView = null;
+            }
+            if (quickLaunchViewSecondary != null) {
+                secondaryWindowManager.removeView(quickLaunchViewSecondary);
+                quickLaunchViewSecondary = null;
             }
             return;
         }
@@ -224,21 +240,70 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
 
         String positionX = prefs.getString("ql_position_x", "left");
         int gravity = Gravity.TOP;
+        int oppositeGravity = Gravity.TOP;
         if ("right".equals(positionX)) {
             gravity |= Gravity.END;
+            oppositeGravity |= Gravity.START;
         } else if ("center".equals(positionX)) {
             gravity |= Gravity.CENTER_HORIZONTAL;
+            oppositeGravity |= Gravity.CENTER_HORIZONTAL;
         } else {
             gravity |= Gravity.START;
+            oppositeGravity |= Gravity.END;
         }
         quickLaunchParams.gravity = gravity;
         defaultWindowManager.updateViewLayout(quickLaunchView, quickLaunchParams);
+
+        if (secondaryWindowManager != defaultWindowManager && secondaryContext != null) {
+            if (quickLaunchViewSecondary == null) {
+                quickLaunchViewSecondary = LayoutInflater.from(secondaryContext).inflate(R.layout.overlay_layout, null);
+                ImageView ivSecondary = quickLaunchViewSecondary.findViewById(R.id.overlay_image_view);
+                ivSecondary.setImageResource(R.drawable.ic_menu);
+
+                int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : WindowManager.LayoutParams.TYPE_PHONE;
+
+                quickLaunchParamsSecondary = new WindowManager.LayoutParams(
+                        sizePx, sizePx, layoutFlag,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                        PixelFormat.TRANSLUCENT);
+
+                quickLaunchParamsSecondary.x = 0;
+                quickLaunchParamsSecondary.y = prefs.getInt("ql_position_y", 200);
+
+                setupDragAndClick(quickLaunchViewSecondary, quickLaunchParamsSecondary, "ql_position_y", this::showQuickLaunchMenu, secondaryWindowManager);
+                secondaryWindowManager.addView(quickLaunchViewSecondary, quickLaunchParamsSecondary);
+            } else {
+                ImageView ivSecondary = quickLaunchViewSecondary.findViewById(R.id.overlay_image_view);
+                ivSecondary.getLayoutParams().width = sizePx;
+                ivSecondary.getLayoutParams().height = sizePx;
+                quickLaunchParamsSecondary.width = sizePx;
+                quickLaunchParamsSecondary.height = sizePx;
+            }
+            quickLaunchParamsSecondary.gravity = oppositeGravity;
+            secondaryWindowManager.updateViewLayout(quickLaunchViewSecondary, quickLaunchParamsSecondary);
+        }
     }
 
     private void showFullscreenToggleButton() {
         int sizeDp = prefs.getInt("fs_button_size", 48);
         int sizePx = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
+
+        String positionX = prefs.getString("fs_position_x", "left");
+        int gravity = Gravity.TOP;
+        int oppositeGravity = Gravity.TOP;
+        if ("right".equals(positionX)) {
+            gravity |= Gravity.END;
+            oppositeGravity |= Gravity.START;
+        } else if ("center".equals(positionX)) {
+            gravity |= Gravity.CENTER_HORIZONTAL;
+            oppositeGravity |= Gravity.CENTER_HORIZONTAL;
+        } else {
+            gravity |= Gravity.START;
+            oppositeGravity |= Gravity.END;
+        }
 
         if (fullscreenToggleView != null) {
             ImageView iv = fullscreenToggleView.findViewById(R.id.overlay_image_view);
@@ -248,56 +313,73 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             iv.getLayoutParams().height = sizePx;
             fullscreenToggleParams.width = sizePx;
             fullscreenToggleParams.height = sizePx;
-
-            String positionX = prefs.getString("fs_position_x", "left");
-            int gravity = Gravity.TOP;
-            if ("right".equals(positionX)) {
-                gravity |= Gravity.END;
-            } else if ("center".equals(positionX)) {
-                gravity |= Gravity.CENTER_HORIZONTAL;
-            } else {
-                gravity |= Gravity.START;
-            }
             fullscreenToggleParams.gravity = gravity;
 
-            secondaryWindowManager.updateViewLayout(fullscreenToggleView, fullscreenToggleParams);
-            return;
-        }
-
-        fullscreenToggleView = LayoutInflater.from(secondaryContext).inflate(R.layout.overlay_layout, null);
-        ImageView iv = fullscreenToggleView.findViewById(R.id.overlay_image_view);
-        iv.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
-
-        int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                : WindowManager.LayoutParams.TYPE_PHONE;
-
-        fullscreenToggleParams = new WindowManager.LayoutParams(
-                sizePx, sizePx, layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT);
-
-        String positionX = prefs.getString("fs_position_x", "left");
-        int gravity = Gravity.TOP;
-        if ("right".equals(positionX)) {
-            gravity |= Gravity.END;
-        } else if ("center".equals(positionX)) {
-            gravity |= Gravity.CENTER_HORIZONTAL;
+            defaultWindowManager.updateViewLayout(fullscreenToggleView, fullscreenToggleParams);
         } else {
-            gravity |= Gravity.START;
+            fullscreenToggleView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
+            ImageView iv = fullscreenToggleView.findViewById(R.id.overlay_image_view);
+            iv.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
+
+            int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    : WindowManager.LayoutParams.TYPE_PHONE;
+
+            fullscreenToggleParams = new WindowManager.LayoutParams(
+                    sizePx, sizePx, layoutFlag,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    PixelFormat.TRANSLUCENT);
+
+            fullscreenToggleParams.gravity = gravity;
+            fullscreenToggleParams.y = prefs.getInt("fs_position_y", 100);
+
+            setupDragAndClick(fullscreenToggleView, fullscreenToggleParams, "fs_position_y", this::toggleFullscreen, defaultWindowManager);
+            defaultWindowManager.addView(fullscreenToggleView, fullscreenToggleParams);
         }
-        fullscreenToggleParams.gravity = gravity;
 
-        fullscreenToggleParams.y = prefs.getInt("fs_position_y", 100);
+        if (secondaryWindowManager != defaultWindowManager && secondaryContext != null) {
+            if (fullscreenToggleViewSecondary != null) {
+                ImageView ivSecondary = fullscreenToggleViewSecondary.findViewById(R.id.overlay_image_view);
+                ivSecondary.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
 
-        setupDragAndClick(fullscreenToggleView, fullscreenToggleParams, "fs_position_y", this::toggleFullscreen, secondaryWindowManager);
-        secondaryWindowManager.addView(fullscreenToggleView, fullscreenToggleParams);
+                ivSecondary.getLayoutParams().width = sizePx;
+                ivSecondary.getLayoutParams().height = sizePx;
+                fullscreenToggleParamsSecondary.width = sizePx;
+                fullscreenToggleParamsSecondary.height = sizePx;
+                fullscreenToggleParamsSecondary.gravity = oppositeGravity;
+
+                secondaryWindowManager.updateViewLayout(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary);
+            } else {
+                fullscreenToggleViewSecondary = LayoutInflater.from(secondaryContext).inflate(R.layout.overlay_layout, null);
+                ImageView ivSecondary = fullscreenToggleViewSecondary.findViewById(R.id.overlay_image_view);
+                ivSecondary.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
+
+                int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : WindowManager.LayoutParams.TYPE_PHONE;
+
+                fullscreenToggleParamsSecondary = new WindowManager.LayoutParams(
+                        sizePx, sizePx, layoutFlag,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                        PixelFormat.TRANSLUCENT);
+
+                fullscreenToggleParamsSecondary.gravity = oppositeGravity;
+                fullscreenToggleParamsSecondary.y = prefs.getInt("fs_position_y", 100);
+
+                setupDragAndClick(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary, "fs_position_y", this::toggleFullscreen, secondaryWindowManager);
+                secondaryWindowManager.addView(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary);
+            }
+        }
     }
 
     private void hideFullscreenToggleButton() {
         if (fullscreenToggleView != null) {
             secondaryWindowManager.removeView(fullscreenToggleView);
             fullscreenToggleView = null;
+        }
+        if (fullscreenToggleViewSecondary != null) {
+            defaultWindowManager.removeView(fullscreenToggleViewSecondary);
+            fullscreenToggleViewSecondary = null;
         }
     }
 
@@ -308,8 +390,14 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
 
         isTargetAppFullscreen = !isTargetAppFullscreen;
 
-        ImageView iv = fullscreenToggleView.findViewById(R.id.overlay_image_view);
-        iv.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
+        if (fullscreenToggleView != null) {
+            ImageView iv = fullscreenToggleView.findViewById(R.id.overlay_image_view);
+            iv.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
+        }
+        if (fullscreenToggleViewSecondary != null) {
+            ImageView ivSecondary = fullscreenToggleViewSecondary.findViewById(R.id.overlay_image_view);
+            ivSecondary.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
+        }
 
         String targetPackage = isTargetAppFullscreen ? currentForegroundPackage : activeFullscreenPackage;
         if (targetPackage == null || targetPackage.isEmpty()) {
@@ -333,6 +421,8 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
                 startActivity(launchIntent);
             }
         }
+
+        checkFullscreenCondition(); // force re-evaluation of visibility
     }
 
     private void showQuickLaunchMenu() {
@@ -430,6 +520,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         }
         if (quickLaunchView != null) defaultWindowManager.removeView(quickLaunchView);
         if (fullscreenToggleView != null) secondaryWindowManager.removeView(fullscreenToggleView);
+        if (fullscreenToggleViewSecondary != null) defaultWindowManager.removeView(fullscreenToggleViewSecondary);
         if (prefs != null) prefs.unregisterOnSharedPreferenceChangeListener(this);
         instance = null;
     }
