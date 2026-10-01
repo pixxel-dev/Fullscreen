@@ -278,7 +278,7 @@ public class FileManagerFragment extends Fragment {
                         openFile(file); // reuse existing logic
                         break;
                     case "Установить (Local ADB / Shizuku)":
-                        installApkWithLocalAdb(file);
+                        ApkInstaller.installApk(requireContext(), file);
                         break;
                 }
             })
@@ -346,96 +346,6 @@ public class FileManagerFragment extends Fragment {
         }).start();
     }
 
-    private void installApkWithLocalAdb(File file) {
-        // Если Shizuku запущен, используем его (он быстрее и стабильнее)
-        if (rikka.shizuku.Shizuku.pingBinder()) {
-            installApkWithShizuku(file);
-            return;
-        }
-
-        // 2. В противном случае пробуем Native TLS ADB (Android 11+)
-        if (NativeAdbHelper.isConnected()) {
-            Toast.makeText(getContext(), "Shizuku не запущен. Пробуем Native ADB (Android 11+)...", Toast.LENGTH_SHORT).show();
-            NativeAdbHelper.installApk(requireContext(), file, (success, message) -> {
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
-                        if (!success) {
-                            tryLegacyLocalAdb(file);
-                        }
-                    });
-                }
-            });
-            return;
-        }
-
-        // 3. Fallback: Local ADB через AdbLib (Legacy port 5555)
-        tryLegacyLocalAdb(file);
-    }
-
-    private void tryLegacyLocalAdb(File file) {
-        Toast.makeText(getContext(), "Пробуем Local ADB (порт 5555)...", Toast.LENGTH_SHORT).show();
-        LocalAdbHelper.installApk(requireContext(), file, (success, message) -> {
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
-                    // Если Local ADB недоступен, предлагаем стандартный установщик
-                    if (!success && message.contains("порт 5555")) {
-                        new AlertDialog.Builder(requireContext())
-                            .setTitle("Внимание")
-                            .setMessage("Отладка по Wi-Fi отключена или недоступна. Открыть стандартный установщик?")
-                            .setPositiveButton("Да", (d, w) -> openFile(file))
-                            .setNegativeButton("Отмена", null)
-                            .show();
-                    }
-                });
-            }
-        });
-    }
-
-    private void installApkWithShizuku(File file) {
-        if (!rikka.shizuku.Shizuku.pingBinder()) {
-            Toast.makeText(getContext(), "Shizuku не запущен или недоступен", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        if (rikka.shizuku.Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            rikka.shizuku.Shizuku.requestPermission(1001);
-            Toast.makeText(getContext(), "Запрошено разрешение Shizuku, попробуйте еще раз", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        Toast.makeText(getContext(), "Начинаю установку через Shizuku...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                Process process = rikka.shizuku.Shizuku.newProcess(new String[]{"pm", "install", "-r", "--user", "10", file.getAbsolutePath()}, null, null);
-
-                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()));
-                String line;
-                StringBuilder output = new StringBuilder();
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-                process.waitFor();
-
-                final String result = output.toString().trim();
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> {
-                        if (result.contains("Success")) {
-                            Toast.makeText(getContext(), "Успешно установлено", Toast.LENGTH_LONG).show();
-                        } else {
-                            Toast.makeText(getContext(), "Ошибка: " + result, Toast.LENGTH_LONG).show();
-                        }
-                    });
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "Сбой: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                }
-            }
-        }).start();
-    }
 
     private void showRenameDialog(File file) {
         final android.widget.EditText input = new android.widget.EditText(requireContext());
@@ -584,7 +494,7 @@ public class FileManagerFragment extends Fragment {
             }
 
             if (mimeType.equals("application/vnd.android.package-archive")) {
-                installApkWithPackageInstaller(file);
+                ApkInstaller.installApkWithPackageInstaller(requireContext(), file);
                 return;
             }
 
@@ -604,52 +514,6 @@ public class FileManagerFragment extends Fragment {
         }
     }
 
-    private void installApkWithPackageInstaller(File file) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            if (!requireContext().getPackageManager().canRequestPackageInstalls()) {
-                Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
-                intent.setData(Uri.parse("package:" + requireContext().getPackageName()));
-                startActivity(intent);
-                Toast.makeText(getContext(), "Разрешите установку неизвестных приложений", Toast.LENGTH_LONG).show();
-                return;
-            }
-        }
-
-        Toast.makeText(getContext(), "Подготовка к установке...", Toast.LENGTH_SHORT).show();
-        new Thread(() -> {
-            try {
-                PackageInstaller packageInstaller = requireContext().getPackageManager().getPackageInstaller();
-                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-                int sessionId = packageInstaller.createSession(params);
-                PackageInstaller.Session session = packageInstaller.openSession(sessionId);
-
-                long sizeBytes = file.length();
-                try (InputStream in = new FileInputStream(file);
-                     OutputStream out = session.openWrite(file.getName(), 0, sizeBytes)) {
-                    byte[] buffer = new byte[65536];
-                    int c;
-                    while ((c = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, c);
-                    }
-                    session.fsync(out);
-                }
-
-                Intent intent = new Intent("com.flyme.fscrn.ACTION_INSTALL_COMPLETE");
-                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    flags |= PendingIntent.FLAG_MUTABLE;
-                }
-                PendingIntent pendingIntent = PendingIntent.getBroadcast(requireContext(), sessionId, intent, flags);
-                session.commit(pendingIntent.getIntentSender());
-                session.close();
-            } catch (Exception e) {
-                Log.e("FileManager", "PackageInstaller error", e);
-                if (getActivity() != null) {
-                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "Ошибка PackageInstaller: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                }
-            }
-        }).start();
-    }
 
     private String getMimeType(String url) {
         String type = null;
