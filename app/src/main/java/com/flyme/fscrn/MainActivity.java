@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.List;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import androidx.fragment.app.Fragment;
+import androidx.preference.SeekBarPreference;
+import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
     private SharedPreferences sharedPreferences;
@@ -153,19 +155,19 @@ public class MainActivity extends AppCompatActivity {
             populateAppsList("fullscreen_apps");
             setupAppInfo();
 
-            Preference adbPairingPref = findPreference("adb_pairing");
-            if (adbPairingPref != null) {
-                adbPairingPref.setOnPreferenceClickListener(preference -> {
-                    showAdbPairingDialog();
-                    return true;
-                });
-            }
-
             Preference usageStatsPref = findPreference("request_usage_stats");
             if (usageStatsPref != null) {
                 usageStatsPref.setOnPreferenceClickListener(preference -> {
                     Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
                     startActivity(intent);
+                    return true;
+                });
+            }
+
+            Preference adbPairingPref = findPreference("adb_pairing");
+            if (adbPairingPref != null) {
+                adbPairingPref.setOnPreferenceClickListener(preference -> {
+                    showAdbPairingDialog();
                     return true;
                 });
             }
@@ -178,6 +180,70 @@ public class MainActivity extends AppCompatActivity {
                     return true;
                 });
             }
+
+            Preference applyScalePref = findPreference("apply_ui_scale");
+            if (applyScalePref != null) {
+                applyScalePref.setOnPreferenceClickListener(preference -> {
+                    SeekBarPreference scalePref = findPreference("global_ui_scale");
+                    if (scalePref != null) {
+                        int density = scalePref.getValue();
+                        applyScreenDensity(density);
+                    }
+                    return true;
+                });
+            }
+
+            Preference resetScalePref = findPreference("reset_ui_scale");
+            if (resetScalePref != null) {
+                resetScalePref.setOnPreferenceClickListener(preference -> {
+                    applyScreenDensity(-1); // -1 triggers reset
+                    return true;
+                });
+            }
+        }
+
+        private void applyScreenDensity(int density) {
+            new Thread(() -> {
+                String cmd = density > 0 ? "wm density " + density : "wm density reset";
+
+                boolean success = false;
+
+                if (rikka.shizuku.Shizuku.pingBinder()) {
+                    try {
+                        Process process = rikka.shizuku.Shizuku.newProcess(cmd.split(" "), null, null);
+                        process.waitFor();
+                        success = process.exitValue() == 0;
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } else if (NativeAdbHelper.isConnected()) {
+                    success = NativeAdbHelper.executeCommand(getContext(), cmd);
+                } else {
+                    final boolean[] localSuccess = {false};
+                    java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+                    LocalAdbHelper.executeShellCommand(getContext(), cmd, (s, msg) -> {
+                        localSuccess[0] = s;
+                        latch.countDown();
+                    });
+                    try {
+                        latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                        success = localSuccess[0];
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                final boolean finalSuccess = success;
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        if (finalSuccess) {
+                            Toast.makeText(getContext(), density > 0 ? "Масштаб применен: " + density : "Масштаб сброшен", Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(getContext(), "Ошибка изменения масштаба. Проверьте ADB/Root", Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            }).start();
         }
 
         private void showAdbPairingDialog() {
@@ -199,17 +265,21 @@ public class MainActivity extends AppCompatActivity {
                                 boolean pairSuccess = NativeAdbHelper.pair(requireContext(), pairingPort, code);
                                 if (pairSuccess) {
                                     boolean connectSuccess = NativeAdbHelper.connect(requireContext(), connectionPort);
-                                    requireActivity().runOnUiThread(() -> {
-                                        android.widget.Toast.makeText(requireContext(),
-                                            connectSuccess ? "ADB успешно сопряжен и подключен!" : "Сопряжение прошло, но ошибка подключения.",
-                                            android.widget.Toast.LENGTH_LONG).show();
-                                    });
+                                    if (getActivity() != null) {
+                                        requireActivity().runOnUiThread(() -> {
+                                            android.widget.Toast.makeText(requireContext(),
+                                                connectSuccess ? "ADB успешно сопряжен и подключен!" : "Сопряжение прошло, но ошибка подключения.",
+                                                android.widget.Toast.LENGTH_LONG).show();
+                                        });
+                                    }
                                 } else {
-                                    requireActivity().runOnUiThread(() -> {
-                                        android.widget.Toast.makeText(requireContext(),
-                                            "Ошибка сопряжения.",
-                                            android.widget.Toast.LENGTH_LONG).show();
-                                    });
+                                    if (getActivity() != null) {
+                                        requireActivity().runOnUiThread(() -> {
+                                            android.widget.Toast.makeText(requireContext(),
+                                                "Ошибка сопряжения.",
+                                                android.widget.Toast.LENGTH_LONG).show();
+                                        });
+                                    }
                                 }
                             }).start();
                         }

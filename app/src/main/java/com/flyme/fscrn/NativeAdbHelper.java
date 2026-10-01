@@ -163,4 +163,37 @@ public class NativeAdbHelper {
     public static boolean isConnected() {
         return currentConnectionPort != null;
     }
+
+    /**
+     * Executes a raw ADB shell command.
+     */
+    public static boolean executeCommand(Context context, String commandLine) {
+        String adbPath = getAdbPath(context);
+        if (adbPath == null || currentConnectionPort == null) {
+            return false;
+        }
+
+        try {
+            String[] shellCmd = commandLine.split(" ");
+            List<String> command = new java.util.ArrayList<>();
+            command.add(adbPath);
+            command.add("-s");
+            command.add("localhost:" + currentConnectionPort);
+            command.add("shell");
+            command.addAll(Arrays.asList(shellCmd));
+
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.directory(context.getFilesDir());
+            pb.environment().put("HOME", context.getFilesDir().getPath());
+            pb.environment().put("TMPDIR", context.getCacheDir().getPath());
+
+            Process process = pb.start();
+            process.waitFor();
+
+            return process.exitValue() == 0;
+        } catch (Exception e) {
+            Log.e(TAG, "Command execution failed", e);
+            return false;
+        }
+    }
 }
