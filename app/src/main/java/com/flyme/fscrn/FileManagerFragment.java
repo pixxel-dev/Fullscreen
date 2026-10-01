@@ -28,6 +28,11 @@ import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import android.content.pm.PackageInstaller;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -76,9 +81,38 @@ public class FileManagerFragment extends Fragment {
         }
     }
 
+    private final BroadcastReceiver installReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if ("com.flyme.fscrn.ACTION_INSTALL_COMPLETE".equals(intent.getAction())) {
+                int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+                String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+                if (status == PackageInstaller.STATUS_SUCCESS) {
+                    Toast.makeText(context, "Успешно установлено", Toast.LENGTH_SHORT).show();
+                } else if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                    Intent confirmIntent = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+                    if (confirmIntent != null) {
+                        confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(confirmIntent);
+                    }
+                } else {
+                    Toast.makeText(context, "Ошибка установки: " + message, Toast.LENGTH_LONG).show();
+                }
+            }
+        }
+    };
+
     @Override
     public void onResume() {
         super.onResume();
+
+        IntentFilter filter = new IntentFilter("com.flyme.fscrn.ACTION_INSTALL_COMPLETE");
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            requireContext().registerReceiver(installReceiver, filter, Context.RECEIVER_EXPORTED);
+        } else {
+            requireContext().registerReceiver(installReceiver, filter);
+        }
+
         if (hasStoragePermission()) {
             loadDirectory(currentDir);
         } else if (!permissionRequested) {
@@ -86,6 +120,14 @@ public class FileManagerFragment extends Fragment {
             permissionRequested = true;
             checkStoragePermissions();
         }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        try {
+            requireContext().unregisterReceiver(installReceiver);
+        } catch (IllegalArgumentException ignored) {}
     }
 
     private boolean hasStoragePermission() {
@@ -532,24 +574,20 @@ public class FileManagerFragment extends Fragment {
 
     private void openFile(File file) {
         try {
-            Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", file);
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-
             String mimeType = getMimeType(file.getAbsolutePath());
             if (mimeType == null) {
                 mimeType = "*/*";
             }
 
+            if (mimeType.equals("application/vnd.android.package-archive")) {
+                installApkWithPackageInstaller(file);
+                return;
+            }
+
+            Uri uri = FileProvider.getUriForFile(requireContext(), requireContext().getPackageName() + ".provider", file);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(uri, mimeType);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-            // Если это APK, используем специализированный ACTION_INSTALL_PACKAGE для лучшей совместимости
-            if (mimeType.equals("application/vnd.android.package-archive")) {
-                intent.setAction(Intent.ACTION_INSTALL_PACKAGE);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
-                intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
-            }
 
             if (intent.resolveActivity(requireContext().getPackageManager()) != null) {
                 startActivity(intent);
@@ -560,6 +598,53 @@ public class FileManagerFragment extends Fragment {
             Toast.makeText(getContext(), "Ошибка при открытии файла", Toast.LENGTH_SHORT).show();
             Log.e("FileManager", "Error opening file", e);
         }
+    }
+
+    private void installApkWithPackageInstaller(File file) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            if (!requireContext().getPackageManager().canRequestPackageInstalls()) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                intent.setData(Uri.parse("package:" + requireContext().getPackageName()));
+                startActivity(intent);
+                Toast.makeText(getContext(), "Разрешите установку неизвестных приложений", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+
+        Toast.makeText(getContext(), "Подготовка к установке...", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                PackageInstaller packageInstaller = requireContext().getPackageManager().getPackageInstaller();
+                PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                int sessionId = packageInstaller.createSession(params);
+                PackageInstaller.Session session = packageInstaller.openSession(sessionId);
+
+                long sizeBytes = file.length();
+                try (InputStream in = new FileInputStream(file);
+                     OutputStream out = session.openWrite(file.getName(), 0, sizeBytes)) {
+                    byte[] buffer = new byte[65536];
+                    int c;
+                    while ((c = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, c);
+                    }
+                    session.fsync(out);
+                }
+
+                Intent intent = new Intent("com.flyme.fscrn.ACTION_INSTALL_COMPLETE");
+                int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    flags |= PendingIntent.FLAG_MUTABLE;
+                }
+                PendingIntent pendingIntent = PendingIntent.getBroadcast(requireContext(), sessionId, intent, flags);
+                session.commit(pendingIntent.getIntentSender());
+                session.close();
+            } catch (Exception e) {
+                Log.e("FileManager", "PackageInstaller error", e);
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> Toast.makeText(getContext(), "Ошибка PackageInstaller: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+            }
+        }).start();
     }
 
     private String getMimeType(String url) {
