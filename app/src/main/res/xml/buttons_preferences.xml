@@ -68,6 +68,14 @@
             app:dependency="fullscreen_overlay_enabled" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Настройки ADB">
+        <Preference
+            app:key="adb_pairing"
+            app:title="Сопряжение Android 11+"
+            app:summary="Настроить беспроводную отладку через код (без ПК)"
+            app:icon="@drawable/ic_adb_pairing" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="Права доступа (Обязательно!)">
         <Preference
             app:key="request_usage_stats"
