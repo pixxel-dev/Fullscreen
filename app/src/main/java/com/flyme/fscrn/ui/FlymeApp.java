@@ -1,6 +1,7 @@
-package com.flyme.fscrn;
+package com.flyme.fscrn.ui;
 
 import android.app.Application;
+import com.flyme.fscrn.R;
 import android.content.SharedPreferences;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.preference.PreferenceManager;

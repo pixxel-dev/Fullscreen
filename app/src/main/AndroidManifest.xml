@@ -25,11 +25,11 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
-        android:name=".FlymeApp"
+        android:name=".ui.FlymeApp"
         android:supportsRtl="true"
         android:theme="@style/Theme.MaterialComponents.DayNight.DarkActionBar">
 
-        <activity android:exported="true" android:name=".MainActivity">
+        <activity android:exported="true" android:name=".ui.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -38,14 +38,14 @@
 
         <!-- Main Service that handles drawing -->
         <service
-            android:name=".service.ForegroundOverlayService"
+            android:name=".overlay.ForegroundOverlayService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
         <!-- Optional Accessibility Service for faster event delivery -->
         <service
-            android:name=".service.OverlayService"
+            android:name=".overlay.OverlayService"
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -67,5 +67,12 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
+        <!-- Boot Receiver to start service on boot -->
+        <receiver android:name=".system.BootReceiver" android:enabled="true" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

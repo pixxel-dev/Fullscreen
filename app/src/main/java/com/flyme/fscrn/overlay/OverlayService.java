@@ -1,6 +1,7 @@
-package com.flyme.fscrn.service;
+package com.flyme.fscrn.overlay;
 
 import android.accessibilityservice.AccessibilityService;
+import com.flyme.fscrn.R;
 import android.content.Intent;
 import android.view.accessibility.AccessibilityEvent;
 

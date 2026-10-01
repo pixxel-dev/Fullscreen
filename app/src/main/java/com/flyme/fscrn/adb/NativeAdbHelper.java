@@ -1,6 +1,7 @@
-package com.flyme.fscrn;
+package com.flyme.fscrn.adb;
 
 import android.content.Context;
+import com.flyme.fscrn.R;
 import android.util.Log;
 
 import java.io.File;
