@@ -301,13 +301,30 @@ public class FileManagerFragment extends Fragment {
     }
 
     private void installApkWithLocalAdb(File file) {
-        // Fallback: If Shizuku is not running, we either try shell or fallback to the system installer.
-        if (!rikka.shizuku.Shizuku.pingBinder()) {
-            Toast.makeText(getContext(), "Shizuku не запущен. Открываем системный установщик...", Toast.LENGTH_SHORT).show();
-            openFile(file); // Fallback to standard installation intent
+        // Если Shizuku запущен, используем его (он быстрее и стабильнее)
+        if (rikka.shizuku.Shizuku.pingBinder()) {
+            installApkWithShizuku(file);
             return;
         }
-        installApkWithShizuku(file);
+
+        // В противном случае пробуем Local ADB (TCP 5555) через AdbLib
+        Toast.makeText(getContext(), "Shizuku не запущен. Пробуем Local ADB (порт 5555)...", Toast.LENGTH_SHORT).show();
+        LocalAdbHelper.installApk(requireContext(), file, (success, message) -> {
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
+                    // Если Local ADB недоступен, предлагаем стандартный установщик
+                    if (!success && message.contains("порт 5555")) {
+                        new AlertDialog.Builder(requireContext())
+                            .setTitle("Внимание")
+                            .setMessage("Отладка по Wi-Fi (Local ADB) отключена или недоступна. Открыть стандартный установщик?")
+                            .setPositiveButton("Да", (d, w) -> openFile(file))
+                            .setNegativeButton("Отмена", null)
+                            .show();
+                    }
+                });
+            }
+        });
     }
 
     private void installApkWithShizuku(File file) {
