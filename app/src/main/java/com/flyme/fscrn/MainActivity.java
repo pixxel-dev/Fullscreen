@@ -41,7 +41,11 @@ public class MainActivity extends AppCompatActivity {
             Configuration config = new Configuration(newBase.getResources().getConfiguration());
             float scale = scalePercent / 100.0f;
             config.fontScale = scale;
-            config.densityDpi = (int) (newBase.getResources().getDisplayMetrics().densityDpi * scale);
+
+            // Calculate new density based on the default system density to avoid compounding
+            int defaultDensity = android.content.res.Resources.getSystem().getDisplayMetrics().densityDpi;
+            config.densityDpi = (int) (defaultDensity * scale);
+
             super.attachBaseContext(newBase.createConfigurationContext(config));
         } else {
             super.attachBaseContext(newBase);
@@ -190,19 +194,21 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
-            Preference accessStatsPref = findPreference("request_accessibility");
-            if (accessStatsPref != null) {
-                accessStatsPref.setOnPreferenceClickListener(preference -> {
-                    Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-                    startActivity(intent);
-                    return true;
-                });
-            }
-
             SeekBarPreference localScalePref = findPreference("local_app_scale_percent");
             if (localScalePref != null) {
                 localScalePref.setOnPreferenceChangeListener((preference, newValue) -> {
                     Toast.makeText(getContext(), "Требуется перезапуск приложения для применения масштаба", Toast.LENGTH_LONG).show();
+                    return true;
+                });
+            }
+
+            Preference restartAppPref = findPreference("restart_app_scale");
+            if (restartAppPref != null) {
+                restartAppPref.setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(requireContext(), MainActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    Runtime.getRuntime().exit(0);
                     return true;
                 });
             }
@@ -256,7 +262,13 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     PackageInfo pInfo = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0);
                     String version = pInfo.versionName;
-                    appInfoPref.setSummary("Версия: " + version);
+                    long versionCode;
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                        versionCode = pInfo.getLongVersionCode();
+                    } else {
+                        versionCode = pInfo.versionCode;
+                    }
+                    appInfoPref.setSummary("Версия: " + version + " (Build " + versionCode + ")");
                 } catch (PackageManager.NameNotFoundException e) {
                     appInfoPref.setSummary("Версия: Неизвестно");
                 }

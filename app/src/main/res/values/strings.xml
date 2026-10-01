@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Flyme Tweak</string>
-    <string name="accessibility_desc">Служба для отслеживания открытых приложений и показа кнопок управления окнами.</string>
 </resources>

@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
-import com.flyme.fscrn.service.OverlayService;
+import com.flyme.fscrn.service.ForegroundOverlayService;
 
 public class BootReceiver extends BroadcastReceiver {
     @Override
@@ -13,10 +13,16 @@ public class BootReceiver extends BroadcastReceiver {
             Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(intent.getAction())) {
 
             boolean isEnabled = context.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE)
-                                       .getBoolean("hud_enabled", false);
+                                       .getBoolean("quick_launch_enabled", false) ||
+                                context.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE)
+                                       .getBoolean("fullscreen_overlay_enabled", false);
             if (isEnabled) {
-                Intent serviceIntent = new Intent(context, OverlayService.class);
-                context.startForegroundService(serviceIntent);
+                Intent serviceIntent = new Intent(context, ForegroundOverlayService.class);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent);
+                } else {
+                    context.startService(serviceIntent);
+                }
             }
         }
     }
