@@ -68,25 +68,15 @@
             app:dependency="fullscreen_overlay_enabled" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Глобальный масштаб интерфейса">
+    <PreferenceCategory app:title="Масштаб интерфейса приложения">
         <SeekBarPreference
-            app:key="global_ui_scale"
-            app:title="Плотность экрана (DPI)"
-            app:summary="Изменяет размер всех элементов системы (требует ADB/Root)"
-            app:min="120"
-            android:max="600"
-            app:defaultValue="160"
+            app:key="local_app_scale_percent"
+            app:title="Размер интерфейса (%)"
+            app:summary="Изменяет масштаб только в этом приложении. Требуется перезапуск."
+            app:min="50"
+            android:max="250"
+            app:defaultValue="100"
             app:showSeekBarValue="true" />
-
-        <Preference
-            app:key="apply_ui_scale"
-            app:title="Применить масштаб"
-            app:summary="Нажмите для применения выбранного масштаба" />
-
-        <Preference
-            app:key="reset_ui_scale"
-            app:title="Сбросить масштаб"
-            app:summary="Вернуть плотность экрана по умолчанию" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Настройки ADB">
