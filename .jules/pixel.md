@@ -1,15 +1,15 @@
-# PIXEL'S JOURNAL - MULTI-SCREEN & AUTOMOTIVE UI QUIRKS ONLY
+# ДНЕВНИК PIXEL — ОСОБЕННОСТИ И ОШИБКИ ИНТЕРФЕЙСА ДЛЯ МУЛЬТИ-ЭКРАНОВ И АВТОМОБИЛЬНЫХ ДИСПЛЕЕВ
 
-## 2025-02-23 - Dynamic UI Scaling & Automotive Densities
-**Screen Context:** Automotive 5120x1600 / Split Zone 2560x1600 & Mobile Standard
-**Layout Trap:**
-Overriding `Configuration.fontScale` or `densityDpi` programmatically in `attachBaseContext` compounds across configuration changes, causing severe UI distortion and double-scaled fonts on ultrawide vehicle head units (sw600dp).
-**Solution:**
-Rely on standard Android resource qualifiers (`values-sw600dp/dimens.xml`) rather than runtime programmatic scale overrides. `sw600dp` targets both full 5120x1600 display and 2560x1600 split zones effectively, expanding touch targets (≥60dp) and font sizes (20sp titles) without corrupting system density metrics.
+## 2025-02-23 - Динамическое масштабирование UI и плотность экранов авто
+**Контекст экрана:** Автомобильный экран 5120x1600 / Зона разделения экрана 2560x1600 и стандартный телефон
+**Ловушка верстки:**
+Программное переопределение `Configuration.fontScale` или `densityDpi` в `attachBaseContext` накладывается при изменениях конфигурации, вызывая сильные искажения интерфейса и двойной масштаб шрифтов на широкоформатных автомобильных магнитолах (sw600dp).
+**Решение:**
+Использовать стандартные квалификаторы ресурсов Android (`values-sw600dp/dimens.xml`), а не программное изменение масштаба во время выполнения. Квалификатор `sw600dp` эффективно работает как на полном экране 5120x1600, так и в зонах разделения 2560x1600, увеличивая сенсорные зоны (≥60dp) и размеры шрифтов (заголовки 20sp) без сбоев системных метрик плотности.
 
-## 2025-02-23 - Theme Attributes & Day/Night Contrast
-**Screen Context:** Automotive Head Units Day/Night Driving Context
-**Layout Trap:**
-Hardcoded color values (e.g. `#1F000000` or `#EEEEEE`) in card stroke colors, text colors, or update banners remain bright during night mode or low-contrast during daylight.
-**Solution:**
-Use theme color attributes `?attr/colorOnPrimary`, `?android:attr/textColorPrimary`, `?android:attr/textColorSecondary`, and `?attr/colorControlHighlight`. Vector drawables in header controls must use `app:tint="?attr/colorOnPrimary"` to dynamically follow header background primary themes in both light and dark modes.
+## 2025-02-23 - Атрибуты тем и контрастность режимов День/Ночь
+**Контекст экрана:** Условия вождения авто (режимы День/Ночь)
+**Ловушка верстки:**
+Жестко заданные цвета (например, `#1F000000` или `#EEEEEE`) в границах карточек, цветах текста или банерах обновлений остаются слишком яркими в ночном режиме или недостаточно контрастными днем.
+**Решение:**
+Использовать семантические атрибуты темы `?attr/colorOnPrimary`, `?android:attr/textColorPrimary`, `?android:attr/textColorSecondary` и `?attr/colorControlHighlight`. Векторная графика в элементах управления шапки должна использовать `app:tint="?attr/colorOnPrimary"`, чтобы динамически подстраиваться под основной цвет шапки как в светлой, так и в темной теме.
