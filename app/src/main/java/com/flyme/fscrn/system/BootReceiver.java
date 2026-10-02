@@ -5,7 +5,7 @@ import com.flyme.fscrn.R;
 import android.content.Context;
 import android.content.Intent;
 
-import com.flyme.fscrn.overlay.OverlayService;
+import com.flyme.fscrn.overlay.ForegroundOverlayService;
 
 public class BootReceiver extends BroadcastReceiver {
     @Override
@@ -16,7 +16,7 @@ public class BootReceiver extends BroadcastReceiver {
             boolean isEnabled = context.getSharedPreferences(context.getPackageName() + "_preferences", Context.MODE_PRIVATE)
                                        .getBoolean("hud_enabled", false);
             if (isEnabled) {
-                Intent serviceIntent = new Intent(context, OverlayService.class);
+                Intent serviceIntent = new Intent(context, ForegroundOverlayService.class);
                 context.startForegroundService(serviceIntent);
             }
         }
