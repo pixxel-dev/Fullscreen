@@ -39,9 +39,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Доступно обновление"
-                    android:textColor="@android:color/white"
+                    android:textColor="?attr/colorOnPrimary"
                     android:textStyle="bold"
-                    android:textSize="16sp" />
+                    android:textSize="@dimen/text_size_title" />
 
                 <TextView
                     android:id="@+id/update_description"
@@ -49,8 +49,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="Новая версия приложения доступна для загрузки."
-                    android:textColor="#EEEEEE"
-                    android:textSize="14sp" />
+                    android:textColor="?attr/colorOnPrimary"
+                    android:textSize="@dimen/text_size_body" />
 
                 <ProgressBar
                     android:id="@+id/update_progress"

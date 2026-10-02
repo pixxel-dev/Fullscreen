@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default dimensions for phone layout -->
+    <dimen name="touch_target_min_size">48dp</dimen>
+    <dimen name="text_size_title">16sp</dimen>
+    <dimen name="text_size_subtitle">12sp</dimen>
+    <dimen name="text_size_body">14sp</dimen>
+    <dimen name="header_height">56dp</dimen>
+    <dimen name="padding_standard">16dp</dimen>
+    <dimen name="padding_small">8dp</dimen>
+    <dimen name="icon_size_standard">24dp</dimen>
+    <dimen name="icon_size_large">40dp</dimen>
+</resources>

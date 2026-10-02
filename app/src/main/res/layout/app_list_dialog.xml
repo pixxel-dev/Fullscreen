@@ -8,8 +8,12 @@
         android:id="@+id/search_input"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="@dimen/touch_target_min_size"
         android:hint="Поиск приложений..."
-        android:padding="16dp"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textColorHint="?android:attr/textColorHint"
+        android:textSize="@dimen/text_size_body"
+        android:padding="@dimen/padding_standard"
         android:inputType="text"
         android:maxLines="1" />
 
