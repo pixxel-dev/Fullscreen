@@ -3,11 +3,11 @@
     <group android:id="@+id/group_storage" android:checkableBehavior="single">
         <item
             android:id="@+id/nav_root"
-            android:icon="@android:drawable/ic_dialog_dialer"
+            android:icon="@drawable/ic_root"
             android:title="Root" />
         <item
             android:id="@+id/nav_internal"
-            android:icon="@android:drawable/ic_menu_save"
+            android:icon="@drawable/ic_memory"
             android:title="Память устройства" />
     </group>
 
