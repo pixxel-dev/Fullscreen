@@ -20,6 +20,10 @@ import java.io.OutputStream;
 
 import rikka.shizuku.Shizuku;
 
+// Импорты утилит ADB из нового пакета:
+import com.flyme.fscrn.adb.NativeAdbHelper;
+import com.flyme.fscrn.adb.LocalAdbHelper;
+
 public class ApkInstaller {
 
     private static final String TAG = "ApkInstaller";
