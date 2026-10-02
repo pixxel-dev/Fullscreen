@@ -2,8 +2,9 @@ package com.flyme.fscrn.installer;
 
 import android.app.PendingIntent;
 import android.content.Context;
-import com.flyme.fscrn.adb.NativeAdbHelper;
+import com.flyme.fscrn.R;
 import com.flyme.fscrn.adb.LocalAdbHelper;
+import com.flyme.fscrn.adb.NativeAdbHelper;
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;

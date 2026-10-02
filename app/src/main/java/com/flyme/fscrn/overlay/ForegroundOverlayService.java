@@ -9,6 +9,7 @@ import android.app.Service;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
+import com.flyme.fscrn.R;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -77,6 +78,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     public void onCreate() {
         super.onCreate();
         instance = this;
+        currentForegroundPackage = getPackageName(); // Set to own package initially
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Flyme Tweak")
@@ -133,11 +135,6 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             }
         };
         handler.post(packageCheckerRunnable);
-    }
-
-    // Method exposed for AccessibilityService to call and inject immediate updates
-    public void onAccessibilityWindowChanged(String packageName) {
-        handlePackageChange(packageName);
     }
 
     private void checkForegroundApp() {
@@ -374,11 +371,11 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
 
     private void hideFullscreenToggleButton() {
         if (fullscreenToggleView != null) {
-            secondaryWindowManager.removeView(fullscreenToggleView);
+            defaultWindowManager.removeView(fullscreenToggleView);
             fullscreenToggleView = null;
         }
         if (fullscreenToggleViewSecondary != null) {
-            defaultWindowManager.removeView(fullscreenToggleViewSecondary);
+            secondaryWindowManager.removeView(fullscreenToggleViewSecondary);
             fullscreenToggleViewSecondary = null;
         }
     }
@@ -519,8 +516,9 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             handler.removeCallbacks(packageCheckerRunnable);
         }
         if (quickLaunchView != null) defaultWindowManager.removeView(quickLaunchView);
-        if (fullscreenToggleView != null) secondaryWindowManager.removeView(fullscreenToggleView);
-        if (fullscreenToggleViewSecondary != null) defaultWindowManager.removeView(fullscreenToggleViewSecondary);
+        if (quickLaunchViewSecondary != null) secondaryWindowManager.removeView(quickLaunchViewSecondary);
+        if (fullscreenToggleView != null) defaultWindowManager.removeView(fullscreenToggleView);
+        if (fullscreenToggleViewSecondary != null) secondaryWindowManager.removeView(fullscreenToggleViewSecondary);
         if (prefs != null) prefs.unregisterOnSharedPreferenceChangeListener(this);
         instance = null;
     }

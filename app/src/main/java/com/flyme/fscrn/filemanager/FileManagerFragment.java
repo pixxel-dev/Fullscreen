@@ -1,8 +1,6 @@
 package com.flyme.fscrn.filemanager;
 
 import android.os.Bundle;
-import com.flyme.fscrn.R;
-import com.flyme.fscrn.installer.ApkInstaller;
 import android.content.Intent;
 import android.net.Uri;
 import android.Manifest;
@@ -34,6 +32,8 @@ import android.content.pm.PackageInstaller;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import com.flyme.fscrn.R;
+import com.flyme.fscrn.installer.ApkInstaller;
 import android.content.IntentFilter;
 import java.io.File;
 import java.io.FileInputStream;
