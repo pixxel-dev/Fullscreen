@@ -1,4 +1,4 @@
-package com.flyme.fscrn;
+package com.flyme.fscrn.filemanager;
 
 import android.os.Bundle;
 import android.content.Intent;
@@ -26,12 +26,14 @@ import com.google.android.material.navigation.NavigationView;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import com.flyme.fscrn.installer.ApkInstaller;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.content.pm.PackageInstaller;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import com.flyme.fscrn.R;
 import android.content.IntentFilter;
 import java.io.File;
 import java.io.FileInputStream;

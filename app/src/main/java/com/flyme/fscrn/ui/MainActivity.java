@@ -1,6 +1,7 @@
-package com.flyme.fscrn;
+package com.flyme.fscrn.ui;
 
 import android.content.Context;
+import com.flyme.fscrn.R;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -13,11 +14,16 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import androidx.appcompat.app.AppCompatActivity;
+import com.flyme.fscrn.installer.ApkInstaller;
+import com.flyme.fscrn.filemanager.FileManagerFragment;
+import com.flyme.fscrn.overlay.ForegroundOverlayService;
+import com.flyme.fscrn.ui.SearchableMultiSelectListPreference;
+import com.flyme.fscrn.adb.NativeAdbHelper;
 import androidx.appcompat.app.AppCompatDelegate;
-import com.flyme.fscrn.SearchableMultiSelectListPreference;
+
 import androidx.preference.PreferenceManager;
 import androidx.preference.PreferenceFragmentCompat;
-import com.flyme.fscrn.service.ForegroundOverlayService;
+
 import androidx.preference.Preference;
 import android.content.pm.PackageInfo;
 import java.util.ArrayList;

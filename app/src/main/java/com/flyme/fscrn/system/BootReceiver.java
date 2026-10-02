@@ -1,10 +1,12 @@
-package com.flyme.fscrn.receiver;
+package com.flyme.fscrn.system;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import com.flyme.fscrn.ui.MainActivity;
+import com.flyme.fscrn.overlay.ForegroundOverlayService;
 import android.content.Intent;
 
-import com.flyme.fscrn.service.ForegroundOverlayService;
+
 
 public class BootReceiver extends BroadcastReceiver {
     @Override
