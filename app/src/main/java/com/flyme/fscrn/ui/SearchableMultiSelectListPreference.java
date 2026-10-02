@@ -1,7 +1,8 @@
-package com.flyme.fscrn;
+package com.flyme.fscrn.ui;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import com.flyme.fscrn.R;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.AttributeSet;

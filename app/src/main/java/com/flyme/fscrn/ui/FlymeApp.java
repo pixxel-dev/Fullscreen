@@ -1,4 +1,4 @@
-package com.flyme.fscrn;
+package com.flyme.fscrn.ui;
 
 import android.app.Application;
 import android.content.SharedPreferences;
@@ -19,7 +19,11 @@ public class FlymeApp extends Application {
             Configuration config = new Configuration(base.getResources().getConfiguration());
             float scale = scalePercent / 100.0f;
             config.fontScale = scale;
-            config.densityDpi = (int) (base.getResources().getDisplayMetrics().densityDpi * scale);
+
+            // Calculate new density based on the default system density to avoid compounding
+            int defaultDensity = android.content.res.Resources.getSystem().getDisplayMetrics().densityDpi;
+            config.densityDpi = (int) (defaultDensity * scale);
+
             Context newContext = base.createConfigurationContext(config);
             super.attachBaseContext(newContext);
         } else {

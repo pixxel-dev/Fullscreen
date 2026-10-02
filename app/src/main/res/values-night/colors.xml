@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="colorPrimary">#90CAF9</color>
+    <color name="colorPrimaryVariant">#42A5F5</color>
+    <color name="colorOnPrimary">#000000</color>
+    <color name="colorSecondary">#80DEEA</color>
+    <color name="colorSecondaryVariant">#26C6DA</color>
+    <color name="colorOnSecondary">#000000</color>
+
     <color name="bottomNavBackground">#121212</color>
     <color name="bottomNavIconColor">#AAAAAA</color>
-    <color name="bottomNavIconColorActive">#BB86FC</color>
+    <color name="bottomNavIconColorActive">#90CAF9</color>
+
+    <color name="fileManagerBackground">#000000</color>
+    <color name="cardBackground">#1E1E1E</color>
 </resources>
