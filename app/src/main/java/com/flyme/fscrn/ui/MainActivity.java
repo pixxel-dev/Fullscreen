@@ -52,7 +52,6 @@ import java.io.InputStreamReader;
 import com.google.android.material.card.MaterialCardView;
 
 public class MainActivity extends AppCompatActivity implements PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
-    private static android.graphics.Bitmap previousScreenSnapshot = null;
 
     private SharedPreferences sharedPreferences;
 
@@ -91,10 +90,6 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         setContentView(R.layout.activity_main);
-
-        if (previousScreenSnapshot != null) {
-            applyScreenSnapshotCrossfade();
-        }
 
         if (!Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
@@ -250,57 +245,16 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
     private void downloadUpdate() {
         if (downloadUrl == null) return;
 
-        btnUpdateDownload.setVisibility(View.GONE);
-        updateProgress.setVisibility(View.VISIBLE);
-        updateProgress.setIndeterminate(false);
-        updateProgress.setProgress(0);
+        android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(downloadUrl));
+        request.setTitle("Обновление Fullscreen");
+        request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+        request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, "fullscreen_update.apk");
 
-        new Thread(() -> {
-            try {
-                URL url = new URL(downloadUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.connect();
-
-                int fileLength = conn.getContentLength();
-
-                downloadedApk = new File(getExternalCacheDir(), "update.apk");
-                InputStream input = conn.getInputStream();
-                FileOutputStream output = new FileOutputStream(downloadedApk);
-
-                byte data[] = new byte[4096];
-                long total = 0;
-                int count;
-                while ((count = input.read(data)) != -1) {
-                    total += count;
-                    if (fileLength > 0) {
-                        int progress = (int) (total * 100 / fileLength);
-                        runOnUiThread(() -> updateProgress.setProgress(progress));
-                    }
-                    output.write(data, 0, count);
-                }
-
-                output.flush();
-                output.close();
-                input.close();
-
-                runOnUiThread(() -> {
-                    updateProgress.setVisibility(View.GONE);
-                    updateDescription.setText("Готово к установке");
-                    btnUpdateInstall.setVisibility(View.VISIBLE);
-
-                    // Automatically trigger installation on download complete as requested
-                    ApkInstaller.installApk(MainActivity.this, downloadedApk);
-                });
-
-            } catch (Exception e) {
-                e.printStackTrace();
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, "Ошибка загрузки: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    btnUpdateDownload.setVisibility(View.VISIBLE);
-                    updateProgress.setVisibility(View.GONE);
-                });
-            }
-        }).start();
+        android.app.DownloadManager manager = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+        if (manager != null) {
+            manager.enqueue(request);
+            Toast.makeText(this, "Загрузка началась", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -389,61 +343,15 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         }
     }
 
-    private void applyScreenSnapshotCrossfade() {
-        android.view.ViewGroup rootView = findViewById(android.R.id.content);
-        if (rootView != null && previousScreenSnapshot != null) {
-            android.widget.ImageView overlayView = new android.widget.ImageView(this);
-            overlayView.setImageBitmap(previousScreenSnapshot);
-            overlayView.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
-
-            android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT);
-            rootView.addView(overlayView, params);
-
-            overlayView.animate()
-                    .alpha(0.0f)
-                    .setDuration(400)
-                    .setListener(new android.animation.AnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(android.animation.Animator animation) {
-                            rootView.removeView(overlayView);
-                            previousScreenSnapshot = null;
-                        }
-                    });
-        } else {
-            previousScreenSnapshot = null;
-        }
-    }
-
-    private void captureScreenSnapshotAndRestart() {
-        View decorView = getWindow().getDecorView();
-        if (decorView.getWidth() > 0 && decorView.getHeight() > 0) {
-            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
-                    decorView.getWidth(), decorView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
-            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-            decorView.draw(canvas);
-            previousScreenSnapshot = bitmap;
-        }
-
-        finish();
-        startActivity(getIntent());
-        overridePendingTransition(0, 0);
-    }
-
     private void toggleTheme() {
         boolean isNightMode = sharedPreferences.getBoolean(FlymeApp.PREF_NIGHT_MODE, false);
         boolean newNightMode = !isNightMode;
 
         sharedPreferences.edit().putBoolean(FlymeApp.PREF_NIGHT_MODE, newNightMode).apply();
 
-        if (newNightMode) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-        } else {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
-        }
-
-        captureScreenSnapshotAndRestart();
+        AppCompatDelegate.setDefaultNightMode(
+                newNightMode ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO
+        );
     }
 
     @Override
