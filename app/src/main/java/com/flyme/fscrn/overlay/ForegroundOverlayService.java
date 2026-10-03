@@ -235,27 +235,32 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         int sizePx = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
 
-        String positionX = prefs.getString("combined_position_x", "left");
-        int gravity = Gravity.TOP;
-        int oppositeGravity = Gravity.TOP;
-        if ("right".equals(positionX)) {
-            gravity |= Gravity.END;
-            oppositeGravity |= Gravity.START;
-        } else if ("center".equals(positionX)) {
-            gravity |= Gravity.CENTER_HORIZONTAL;
-            oppositeGravity |= Gravity.CENTER_HORIZONTAL;
-        } else {
-            gravity |= Gravity.START;
-            oppositeGravity |= Gravity.END;
+        String position = prefs.getString("combined_position_x", "left");
+        boolean isHorizontalMode = "top".equals(position) || "bottom".equals(position);
+
+        int gravity = Gravity.NO_GRAVITY;
+        int oppositeGravity = Gravity.NO_GRAVITY;
+
+        if ("top".equals(position)) {
+            gravity = Gravity.TOP | Gravity.START;
+            oppositeGravity = Gravity.TOP | Gravity.START;
+        } else if ("bottom".equals(position)) {
+            gravity = Gravity.BOTTOM | Gravity.START;
+            oppositeGravity = Gravity.BOTTOM | Gravity.START;
+        } else if ("right".equals(position)) {
+            gravity = Gravity.TOP | Gravity.END;
+            oppositeGravity = Gravity.TOP | Gravity.START;
+        } else { // left
+            gravity = Gravity.TOP | Gravity.START;
+            oppositeGravity = Gravity.TOP | Gravity.END;
         }
 
-        // Setup or rebuild primary combined view
         if (combinedView != null) {
             defaultWindowManager.removeView(combinedView);
             combinedView = null;
         }
 
-        combinedView = createCombinedLinearLayout(this, showQuickLaunch, showFullscreen, sizePx, false, defaultWindowManager);
+        combinedView = createCombinedLinearLayout(this, showQuickLaunch, showFullscreen, sizePx, isHorizontalMode, false, defaultWindowManager);
         int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 : WindowManager.LayoutParams.TYPE_PHONE;
@@ -268,36 +273,45 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
                 PixelFormat.TRANSLUCENT);
 
         combinedParams.gravity = gravity;
-        combinedParams.y = prefs.getInt("combined_position_y", 200);
+        if (isHorizontalMode) {
+            combinedParams.x = prefs.getInt("combined_position_x_offset", 200);
+            combinedParams.y = 0;
+        } else {
+            combinedParams.x = 0;
+            combinedParams.y = prefs.getInt("combined_position_y", 200);
+        }
 
         defaultWindowManager.addView(combinedView, combinedParams);
 
-        // Setup or rebuild secondary combined view for display 1003
         if (secondaryWindowManager != defaultWindowManager && secondaryContext != null) {
             if (combinedViewSecondary != null) {
                 secondaryWindowManager.removeView(combinedViewSecondary);
                 combinedViewSecondary = null;
             }
 
-            combinedViewSecondary = createCombinedLinearLayout(secondaryContext, showQuickLaunch, showFullscreen, sizePx, true, secondaryWindowManager);
-            combinedParamsSecondary = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    layoutFlag,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                    PixelFormat.TRANSLUCENT);
+            // Do not duplicate on secondary display for top/bottom (horizontal) modes
+            if (!isHorizontalMode) {
+                combinedViewSecondary = createCombinedLinearLayout(secondaryContext, showQuickLaunch, showFullscreen, sizePx, false, true, secondaryWindowManager);
+                combinedParamsSecondary = new WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        layoutFlag,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                        PixelFormat.TRANSLUCENT);
 
-            combinedParamsSecondary.gravity = oppositeGravity;
-            combinedParamsSecondary.y = prefs.getInt("combined_position_y", 200);
+                combinedParamsSecondary.gravity = oppositeGravity;
+                combinedParamsSecondary.x = 0;
+                combinedParamsSecondary.y = prefs.getInt("combined_position_y", 200);
 
-            secondaryWindowManager.addView(combinedViewSecondary, combinedParamsSecondary);
+                secondaryWindowManager.addView(combinedViewSecondary, combinedParamsSecondary);
+            }
         }
     }
 
-    private android.widget.LinearLayout createCombinedLinearLayout(Context context, boolean showQuickLaunch, boolean showFullscreen, int sizePx, boolean isSecondary, WindowManager wm) {
+    private android.widget.LinearLayout createCombinedLinearLayout(Context context, boolean showQuickLaunch, boolean showFullscreen, int sizePx, boolean isHorizontalMode, boolean isSecondary, WindowManager wm) {
         android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
-        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+        layout.setOrientation(isHorizontalMode ? android.widget.LinearLayout.HORIZONTAL : android.widget.LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER);
 
         int marginPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4, getResources().getDisplayMetrics());
 
@@ -309,9 +323,13 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             iv.getLayoutParams().height = sizePx;
 
             android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) qlItem.getLayoutParams();
-            lp.setMargins(0, marginPx, 0, marginPx);
+            if (isHorizontalMode) {
+                lp.setMargins(marginPx, 0, marginPx, 0);
+            } else {
+                lp.setMargins(0, marginPx, 0, marginPx);
+            }
 
-            setupCombinedButtonTouch(qlItem, "combined_position_y", this::showQuickLaunchMenu, wm, isSecondary);
+            setupCombinedButtonTouch(qlItem, isHorizontalMode, this::showQuickLaunchMenu, wm, isSecondary);
             layout.addView(qlItem);
         }
 
@@ -323,19 +341,23 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             iv.getLayoutParams().height = sizePx;
 
             android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) fsItem.getLayoutParams();
-            lp.setMargins(0, marginPx, 0, marginPx);
+            if (isHorizontalMode) {
+                lp.setMargins(marginPx, 0, marginPx, 0);
+            } else {
+                lp.setMargins(0, marginPx, 0, marginPx);
+            }
 
-            setupCombinedButtonTouch(fsItem, "combined_position_y", this::toggleFullscreen, wm, isSecondary);
+            setupCombinedButtonTouch(fsItem, isHorizontalMode, this::toggleFullscreen, wm, isSecondary);
             layout.addView(fsItem);
         }
 
         return layout;
     }
 
-    private void setupCombinedButtonTouch(View buttonView, String prefKey, Runnable onClick, WindowManager wm, boolean isSecondary) {
+    private void setupCombinedButtonTouch(View buttonView, boolean isHorizontalMode, Runnable onClick, WindowManager wm, boolean isSecondary) {
         buttonView.setOnTouchListener(new View.OnTouchListener() {
-            private int initialY;
-            private float initialTouchY;
+            private int initialPos;
+            private float initialTouchPos;
             private boolean isClick;
 
             @Override
@@ -346,20 +368,28 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
 
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        initialY = params.y;
-                        initialTouchY = event.getRawY();
+                        initialPos = isHorizontalMode ? params.x : params.y;
+                        initialTouchPos = isHorizontalMode ? event.getRawX() : event.getRawY();
                         isClick = true;
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        int deltaY = (int) (event.getRawY() - initialTouchY);
-                        if (Math.abs(deltaY) > ViewConfiguration.get(ForegroundOverlayService.this).getScaledTouchSlop()) {
+                        int delta = (int) ((isHorizontalMode ? event.getRawX() : event.getRawY()) - initialTouchPos);
+                        if (Math.abs(delta) > ViewConfiguration.get(ForegroundOverlayService.this).getScaledTouchSlop()) {
                             isClick = false;
                         }
                         if (!isClick) {
-                            params.y = initialY + deltaY;
+                            if (isHorizontalMode) {
+                                params.x = initialPos + delta;
+                            } else {
+                                params.y = initialPos + delta;
+                            }
                             wm.updateViewLayout(container, params);
                             if (!isSecondary && combinedParamsSecondary != null && combinedViewSecondary != null) {
-                                combinedParamsSecondary.y = params.y;
+                                if (isHorizontalMode) {
+                                    combinedParamsSecondary.x = params.x;
+                                } else {
+                                    combinedParamsSecondary.y = params.y;
+                                }
                                 secondaryWindowManager.updateViewLayout(combinedViewSecondary, combinedParamsSecondary);
                             }
                         }
@@ -368,7 +398,11 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
                         if (isClick) {
                             onClick.run();
                         } else {
-                            prefs.edit().putInt(prefKey, params.y).apply();
+                            if (isHorizontalMode) {
+                                prefs.edit().putInt("combined_position_x_offset", params.x).apply();
+                            } else {
+                                prefs.edit().putInt("combined_position_y", params.y).apply();
+                            }
                         }
                         return true;
                 }
@@ -411,6 +445,9 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         int sizePx = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
 
+        String position = prefs.getString("ql_position_x", "left");
+        boolean isHorizontalMode = "top".equals(position) || "bottom".equals(position);
+
         if (quickLaunchView == null) {
             quickLaunchView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
             ImageView iv = quickLaunchView.findViewById(R.id.overlay_image_view);
@@ -425,10 +462,15 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
 
-            quickLaunchParams.x = 0;
-            quickLaunchParams.y = prefs.getInt("ql_position_y", 200);
+            if (isHorizontalMode) {
+                quickLaunchParams.x = prefs.getInt("ql_position_x_offset", 200);
+                quickLaunchParams.y = 0;
+            } else {
+                quickLaunchParams.x = 0;
+                quickLaunchParams.y = prefs.getInt("ql_position_y", 200);
+            }
 
-            setupDragAndClick(quickLaunchView, quickLaunchParams, "ql_position_y", this::showQuickLaunchMenu, defaultWindowManager);
+            setupDragAndClick(quickLaunchView, quickLaunchParams, isHorizontalMode, "ql_position_x_offset", "ql_position_y", this::showQuickLaunchMenu, defaultWindowManager);
             defaultWindowManager.addView(quickLaunchView, quickLaunchParams);
         } else {
             ImageView iv = quickLaunchView.findViewById(R.id.overlay_image_view);
@@ -438,51 +480,72 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             quickLaunchParams.height = sizePx;
         }
 
-        String positionX = prefs.getString("ql_position_x", "left");
-        int gravity = Gravity.TOP;
-        int oppositeGravity = Gravity.TOP;
-        if ("right".equals(positionX)) {
-            gravity |= Gravity.END;
-            oppositeGravity |= Gravity.START;
-        } else if ("center".equals(positionX)) {
-            gravity |= Gravity.CENTER_HORIZONTAL;
-            oppositeGravity |= Gravity.CENTER_HORIZONTAL;
-        } else {
-            gravity |= Gravity.START;
-            oppositeGravity |= Gravity.END;
+        int gravity = Gravity.NO_GRAVITY;
+        int oppositeGravity = Gravity.NO_GRAVITY;
+
+        if ("top".equals(position)) {
+            gravity = Gravity.TOP | Gravity.START;
+            oppositeGravity = Gravity.TOP | Gravity.START;
+        } else if ("bottom".equals(position)) {
+            gravity = Gravity.BOTTOM | Gravity.START;
+            oppositeGravity = Gravity.BOTTOM | Gravity.START;
+        } else if ("right".equals(position)) {
+            gravity = Gravity.TOP | Gravity.END;
+            oppositeGravity = Gravity.TOP | Gravity.START;
+        } else { // left
+            gravity = Gravity.TOP | Gravity.START;
+            oppositeGravity = Gravity.TOP | Gravity.END;
         }
+
+        if (isHorizontalMode) {
+            quickLaunchParams.x = prefs.getInt("ql_position_x_offset", 200);
+            quickLaunchParams.y = 0;
+        } else {
+            quickLaunchParams.x = 0;
+            quickLaunchParams.y = prefs.getInt("ql_position_y", 200);
+        }
+
         quickLaunchParams.gravity = gravity;
+        setupDragAndClick(quickLaunchView, quickLaunchParams, isHorizontalMode, "ql_position_x_offset", "ql_position_y", this::showQuickLaunchMenu, defaultWindowManager);
         defaultWindowManager.updateViewLayout(quickLaunchView, quickLaunchParams);
 
         if (secondaryWindowManager != defaultWindowManager && secondaryContext != null) {
-            if (quickLaunchViewSecondary == null) {
-                quickLaunchViewSecondary = LayoutInflater.from(secondaryContext).inflate(R.layout.overlay_layout, null);
-                ImageView ivSecondary = quickLaunchViewSecondary.findViewById(R.id.overlay_image_view);
-                ivSecondary.setImageResource(R.drawable.ic_menu);
-
-                int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE;
-
-                quickLaunchParamsSecondary = new WindowManager.LayoutParams(
-                        sizePx, sizePx, layoutFlag,
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                        PixelFormat.TRANSLUCENT);
-
-                quickLaunchParamsSecondary.x = 0;
-                quickLaunchParamsSecondary.y = prefs.getInt("ql_position_y", 200);
-
-                setupDragAndClick(quickLaunchViewSecondary, quickLaunchParamsSecondary, "ql_position_y", this::showQuickLaunchMenu, secondaryWindowManager);
-                secondaryWindowManager.addView(quickLaunchViewSecondary, quickLaunchParamsSecondary);
+            if (isHorizontalMode) {
+                if (quickLaunchViewSecondary != null) {
+                    secondaryWindowManager.removeView(quickLaunchViewSecondary);
+                    quickLaunchViewSecondary = null;
+                }
             } else {
-                ImageView ivSecondary = quickLaunchViewSecondary.findViewById(R.id.overlay_image_view);
-                ivSecondary.getLayoutParams().width = sizePx;
-                ivSecondary.getLayoutParams().height = sizePx;
-                quickLaunchParamsSecondary.width = sizePx;
-                quickLaunchParamsSecondary.height = sizePx;
+                if (quickLaunchViewSecondary == null) {
+                    quickLaunchViewSecondary = LayoutInflater.from(secondaryContext).inflate(R.layout.overlay_layout, null);
+                    ImageView ivSecondary = quickLaunchViewSecondary.findViewById(R.id.overlay_image_view);
+                    ivSecondary.setImageResource(R.drawable.ic_menu);
+
+                    int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                            : WindowManager.LayoutParams.TYPE_PHONE;
+
+                    quickLaunchParamsSecondary = new WindowManager.LayoutParams(
+                            sizePx, sizePx, layoutFlag,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                            PixelFormat.TRANSLUCENT);
+
+                    quickLaunchParamsSecondary.x = 0;
+                    quickLaunchParamsSecondary.y = prefs.getInt("ql_position_y", 200);
+                    quickLaunchParamsSecondary.gravity = oppositeGravity;
+
+                    setupDragAndClick(quickLaunchViewSecondary, quickLaunchParamsSecondary, false, "ql_position_x_offset", "ql_position_y", this::showQuickLaunchMenu, secondaryWindowManager);
+                    secondaryWindowManager.addView(quickLaunchViewSecondary, quickLaunchParamsSecondary);
+                } else {
+                    ImageView ivSecondary = quickLaunchViewSecondary.findViewById(R.id.overlay_image_view);
+                    ivSecondary.getLayoutParams().width = sizePx;
+                    ivSecondary.getLayoutParams().height = sizePx;
+                    quickLaunchParamsSecondary.width = sizePx;
+                    quickLaunchParamsSecondary.height = sizePx;
+                    quickLaunchParamsSecondary.gravity = oppositeGravity;
+                    secondaryWindowManager.updateViewLayout(quickLaunchViewSecondary, quickLaunchParamsSecondary);
+                }
             }
-            quickLaunchParamsSecondary.gravity = oppositeGravity;
-            secondaryWindowManager.updateViewLayout(quickLaunchViewSecondary, quickLaunchParamsSecondary);
         }
     }
 
@@ -491,18 +554,24 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         int sizePx = (int) TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
 
-        String positionX = prefs.getString("fs_position_x", "left");
-        int gravity = Gravity.TOP;
-        int oppositeGravity = Gravity.TOP;
-        if ("right".equals(positionX)) {
-            gravity |= Gravity.END;
-            oppositeGravity |= Gravity.START;
-        } else if ("center".equals(positionX)) {
-            gravity |= Gravity.CENTER_HORIZONTAL;
-            oppositeGravity |= Gravity.CENTER_HORIZONTAL;
-        } else {
-            gravity |= Gravity.START;
-            oppositeGravity |= Gravity.END;
+        String position = prefs.getString("fs_position_x", "left");
+        boolean isHorizontalMode = "top".equals(position) || "bottom".equals(position);
+
+        int gravity = Gravity.NO_GRAVITY;
+        int oppositeGravity = Gravity.NO_GRAVITY;
+
+        if ("top".equals(position)) {
+            gravity = Gravity.TOP | Gravity.START;
+            oppositeGravity = Gravity.TOP | Gravity.START;
+        } else if ("bottom".equals(position)) {
+            gravity = Gravity.BOTTOM | Gravity.START;
+            oppositeGravity = Gravity.BOTTOM | Gravity.START;
+        } else if ("right".equals(position)) {
+            gravity = Gravity.TOP | Gravity.END;
+            oppositeGravity = Gravity.TOP | Gravity.START;
+        } else { // left
+            gravity = Gravity.TOP | Gravity.START;
+            oppositeGravity = Gravity.TOP | Gravity.END;
         }
 
         if (fullscreenToggleView != null) {
@@ -515,6 +584,15 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             fullscreenToggleParams.height = sizePx;
             fullscreenToggleParams.gravity = gravity;
 
+            if (isHorizontalMode) {
+                fullscreenToggleParams.x = prefs.getInt("fs_position_x_offset", 100);
+                fullscreenToggleParams.y = 0;
+            } else {
+                fullscreenToggleParams.x = 0;
+                fullscreenToggleParams.y = prefs.getInt("fs_position_y", 100);
+            }
+
+            setupDragAndClick(fullscreenToggleView, fullscreenToggleParams, isHorizontalMode, "fs_position_x_offset", "fs_position_y", this::toggleFullscreen, defaultWindowManager);
             defaultWindowManager.updateViewLayout(fullscreenToggleView, fullscreenToggleParams);
         } else {
             fullscreenToggleView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
@@ -531,43 +609,56 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
                     PixelFormat.TRANSLUCENT);
 
             fullscreenToggleParams.gravity = gravity;
-            fullscreenToggleParams.y = prefs.getInt("fs_position_y", 100);
+            if (isHorizontalMode) {
+                fullscreenToggleParams.x = prefs.getInt("fs_position_x_offset", 100);
+                fullscreenToggleParams.y = 0;
+            } else {
+                fullscreenToggleParams.x = 0;
+                fullscreenToggleParams.y = prefs.getInt("fs_position_y", 100);
+            }
 
-            setupDragAndClick(fullscreenToggleView, fullscreenToggleParams, "fs_position_y", this::toggleFullscreen, defaultWindowManager);
+            setupDragAndClick(fullscreenToggleView, fullscreenToggleParams, isHorizontalMode, "fs_position_x_offset", "fs_position_y", this::toggleFullscreen, defaultWindowManager);
             defaultWindowManager.addView(fullscreenToggleView, fullscreenToggleParams);
         }
 
         if (secondaryWindowManager != defaultWindowManager && secondaryContext != null) {
-            if (fullscreenToggleViewSecondary != null) {
-                ImageView ivSecondary = fullscreenToggleViewSecondary.findViewById(R.id.overlay_image_view);
-                ivSecondary.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
-
-                ivSecondary.getLayoutParams().width = sizePx;
-                ivSecondary.getLayoutParams().height = sizePx;
-                fullscreenToggleParamsSecondary.width = sizePx;
-                fullscreenToggleParamsSecondary.height = sizePx;
-                fullscreenToggleParamsSecondary.gravity = oppositeGravity;
-
-                secondaryWindowManager.updateViewLayout(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary);
+            if (isHorizontalMode) {
+                if (fullscreenToggleViewSecondary != null) {
+                    secondaryWindowManager.removeView(fullscreenToggleViewSecondary);
+                    fullscreenToggleViewSecondary = null;
+                }
             } else {
-                fullscreenToggleViewSecondary = LayoutInflater.from(secondaryContext).inflate(R.layout.overlay_layout, null);
-                ImageView ivSecondary = fullscreenToggleViewSecondary.findViewById(R.id.overlay_image_view);
-                ivSecondary.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
+                if (fullscreenToggleViewSecondary != null) {
+                    ImageView ivSecondary = fullscreenToggleViewSecondary.findViewById(R.id.overlay_image_view);
+                    ivSecondary.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
 
-                int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE;
+                    ivSecondary.getLayoutParams().width = sizePx;
+                    ivSecondary.getLayoutParams().height = sizePx;
+                    fullscreenToggleParamsSecondary.width = sizePx;
+                    fullscreenToggleParamsSecondary.height = sizePx;
+                    fullscreenToggleParamsSecondary.gravity = oppositeGravity;
 
-                fullscreenToggleParamsSecondary = new WindowManager.LayoutParams(
-                        sizePx, sizePx, layoutFlag,
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                        PixelFormat.TRANSLUCENT);
+                    secondaryWindowManager.updateViewLayout(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary);
+                } else {
+                    fullscreenToggleViewSecondary = LayoutInflater.from(secondaryContext).inflate(R.layout.overlay_layout, null);
+                    ImageView ivSecondary = fullscreenToggleViewSecondary.findViewById(R.id.overlay_image_view);
+                    ivSecondary.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
 
-                fullscreenToggleParamsSecondary.gravity = oppositeGravity;
-                fullscreenToggleParamsSecondary.y = prefs.getInt("fs_position_y", 100);
+                    int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                            : WindowManager.LayoutParams.TYPE_PHONE;
 
-                setupDragAndClick(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary, "fs_position_y", this::toggleFullscreen, secondaryWindowManager);
-                secondaryWindowManager.addView(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary);
+                    fullscreenToggleParamsSecondary = new WindowManager.LayoutParams(
+                            sizePx, sizePx, layoutFlag,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                            PixelFormat.TRANSLUCENT);
+
+                    fullscreenToggleParamsSecondary.gravity = oppositeGravity;
+                    fullscreenToggleParamsSecondary.y = prefs.getInt("fs_position_y", 100);
+
+                    setupDragAndClick(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary, false, "fs_position_x_offset", "fs_position_y", this::toggleFullscreen, secondaryWindowManager);
+                    secondaryWindowManager.addView(fullscreenToggleViewSecondary, fullscreenToggleParamsSecondary);
+                }
             }
         }
     }
@@ -661,27 +752,31 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         dialog.show();
     }
 
-    private void setupDragAndClick(View view, WindowManager.LayoutParams params, String prefKey, Runnable onClick, WindowManager wm) {
+    private void setupDragAndClick(View view, WindowManager.LayoutParams params, boolean isHorizontalMode, String xPrefKey, String yPrefKey, Runnable onClick, WindowManager wm) {
         view.setOnTouchListener(new View.OnTouchListener() {
-            private int initialY;
-            private float initialTouchY;
+            private int initialPos;
+            private float initialTouchPos;
             private boolean isClick;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        initialY = params.y;
-                        initialTouchY = event.getRawY();
+                        initialPos = isHorizontalMode ? params.x : params.y;
+                        initialTouchPos = isHorizontalMode ? event.getRawX() : event.getRawY();
                         isClick = true;
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        int deltaY = (int) (event.getRawY() - initialTouchY);
-                        if (Math.abs(deltaY) > ViewConfiguration.get(ForegroundOverlayService.this).getScaledTouchSlop()) {
+                        int delta = (int) ((isHorizontalMode ? event.getRawX() : event.getRawY()) - initialTouchPos);
+                        if (Math.abs(delta) > ViewConfiguration.get(ForegroundOverlayService.this).getScaledTouchSlop()) {
                             isClick = false;
                         }
                         if (!isClick) {
-                            params.y = initialY + deltaY;
+                            if (isHorizontalMode) {
+                                params.x = initialPos + delta;
+                            } else {
+                                params.y = initialPos + delta;
+                            }
                             wm.updateViewLayout(view, params);
                         }
                         return true;
@@ -689,7 +784,11 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
                         if (isClick) {
                             onClick.run();
                         } else {
-                            prefs.edit().putInt(prefKey, params.y).apply();
+                            if (isHorizontalMode) {
+                                prefs.edit().putInt(xPrefKey, params.x).apply();
+                            } else {
+                                prefs.edit().putInt(yPrefKey, params.y).apply();
+                            }
                         }
                         return true;
                 }

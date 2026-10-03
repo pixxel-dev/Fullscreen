@@ -356,9 +356,10 @@ public class MainActivity extends AppCompatActivity {
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         }
 
-        // Smooth transition animation when recreating the activity for theme change
+        // Smoothly restart activity to ensure theme change applies with fade animation
+        finish();
+        startActivity(getIntent());
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-        invalidateOptionsMenu();
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
