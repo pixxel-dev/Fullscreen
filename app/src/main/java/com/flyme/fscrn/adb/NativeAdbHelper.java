@@ -1,6 +1,8 @@
 package com.flyme.fscrn.adb;
 
 import android.content.Context;
+import android.content.Intent;
+import android.os.Process;
 import android.util.Log;
 
 import java.io.File;
@@ -13,12 +15,8 @@ import java.util.concurrent.TimeUnit;
 public class NativeAdbHelper {
     private static final String TAG = "NativeAdbHelper";
 
-    // Store connection port globally to use for subsequent commands
     private static String currentConnectionPort = null;
 
-    /**
-     * Gets the path to the native adb binary extracted by the Android Package Manager.
-     */
     private static String getAdbPath(Context context) {
         String path = context.getApplicationInfo().nativeLibraryDir + "/libadb.so";
         File f = new File(path);
@@ -29,15 +27,11 @@ public class NativeAdbHelper {
         return null;
     }
 
-    /**
-     * Выполняет сопряжение (pairing) для Android 11+
-     */
     public static boolean pair(Context context, String port, String pairingCode) {
         String adbPath = getAdbPath(context);
         if (adbPath == null) return false;
 
         try {
-            // Сначала запустим сервер
             ProcessBuilder serverPb = new ProcessBuilder(Arrays.asList(adbPath, "start-server"));
             serverPb.environment().put("HOME", context.getFilesDir().getPath());
             serverPb.environment().put("TMPDIR", context.getCacheDir().getPath());
@@ -49,9 +43,8 @@ public class NativeAdbHelper {
             pb.environment().put("HOME", context.getFilesDir().getPath());
             pb.environment().put("TMPDIR", context.getCacheDir().getPath());
 
-            Process process = pb.start();
+            java.lang.Process process = pb.start();
 
-            // Пишем код сопряжения в stdin
             java.io.PrintStream ps = new java.io.PrintStream(process.getOutputStream());
             ps.println(pairingCode);
             ps.flush();
@@ -69,9 +62,6 @@ public class NativeAdbHelper {
                 return false;
             }
 
-            // Процесс pair от LADB обычно возвращает 0 при успехе.
-            // При использовании stdin он может не выдавать "successfully paired" в stdout,
-            // поэтому мы просто полагаемся на код возврата.
             return process.exitValue() == 0;
 
         } catch (Exception e) {
@@ -80,9 +70,6 @@ public class NativeAdbHelper {
         }
     }
 
-    /**
-     * Выполняет подключение к основному порту ADB (TLS connection)
-     */
     public static boolean connect(Context context, String connectionPort) {
         String adbPath = getAdbPath(context);
         if (adbPath == null) return false;
@@ -94,7 +81,7 @@ public class NativeAdbHelper {
             pb.environment().put("HOME", context.getFilesDir().getPath());
             pb.environment().put("TMPDIR", context.getCacheDir().getPath());
 
-            Process process = pb.start();
+            java.lang.Process process = pb.start();
             process.waitFor();
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -118,26 +105,30 @@ public class NativeAdbHelper {
         }
     }
 
-    /**
-     * Выполняет установку APK через нативный ADB.
-     */
     public static void installApk(Context context, File apkFile, LocalAdbHelper.AdbListener listener) {
         new Thread(() -> {
             String adbPath = getAdbPath(context);
             if (adbPath == null || currentConnectionPort == null) {
-                listener.onResult(false, "ADB не инициализирован или не подключен (Android 11+)");
+                listener.onResult(false, "ADB не инициализирован или не подключен");
                 return;
             }
 
             try {
-                // Если у нас несколько устройств (например 5555 и TLS порт), указываем порт
-                List<String> command = Arrays.asList(adbPath, "-s", "localhost:" + currentConnectionPort, "install", "-r", "--user", "10", apkFile.getAbsolutePath());
+                int userId = 0;
+                try {
+                    int handleId = Process.myUserHandle().hashCode();
+                    if (handleId >= 0) {
+                        userId = handleId;
+                    }
+                } catch (Throwable ignored) {}
+
+                List<String> command = Arrays.asList(adbPath, "-s", "localhost:" + currentConnectionPort, "install", "-r", "--user", String.valueOf(userId), apkFile.getAbsolutePath());
                 ProcessBuilder pb = new ProcessBuilder(command);
                 pb.directory(context.getFilesDir());
                 pb.environment().put("HOME", context.getFilesDir().getPath());
                 pb.environment().put("TMPDIR", context.getCacheDir().getPath());
 
-                Process process = pb.start();
+                java.lang.Process process = pb.start();
 
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 StringBuilder output = new StringBuilder();
@@ -164,9 +155,29 @@ public class NativeAdbHelper {
         return currentConnectionPort != null;
     }
 
-    /**
-     * Executes a raw ADB shell command.
-     */
+    public static String getStatusSummary(Context context) {
+        if (isConnected()) {
+            return "🟢 Беспроводная отладка ADB подключена (порт " + currentConnectionPort + ")";
+        }
+        return "🔴 Беспроводной ADB не сопряжен (нажмите для настройки)";
+    }
+
+    public static void openDeveloperSettings(Context context) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+            } catch (Exception ex) {
+                Log.e(TAG, "Cannot open settings", ex);
+            }
+        }
+    }
+
     public static boolean executeCommand(Context context, String commandLine) {
         String adbPath = getAdbPath(context);
         if (adbPath == null || currentConnectionPort == null) {
@@ -187,7 +198,7 @@ public class NativeAdbHelper {
             pb.environment().put("HOME", context.getFilesDir().getPath());
             pb.environment().put("TMPDIR", context.getCacheDir().getPath());
 
-            Process process = pb.start();
+            java.lang.Process process = pb.start();
             process.waitFor();
 
             return process.exitValue() == 0;
