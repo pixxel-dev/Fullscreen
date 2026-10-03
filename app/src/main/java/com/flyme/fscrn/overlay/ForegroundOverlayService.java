@@ -1,4 +1,4 @@
-package com.flyme.fscrn.overlay;
+package com.flyme.fscrn.service;
 
 import android.app.ActivityOptions;
 import android.app.AlertDialog;

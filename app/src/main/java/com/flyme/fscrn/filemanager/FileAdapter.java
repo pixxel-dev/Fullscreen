@@ -1,7 +1,6 @@
-package com.flyme.fscrn.filemanager;
+package com.flyme.fscrn;
 
 import android.view.LayoutInflater;
-import com.flyme.fscrn.R;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.MimeTypeMap;
