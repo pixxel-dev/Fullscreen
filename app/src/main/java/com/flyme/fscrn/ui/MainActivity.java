@@ -384,11 +384,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                 shizukuPref.setOnPreferenceClickListener(preference -> {
                     ShizukuManager.checkStatus(requireContext(), (isAvailable, hasPermission, statusMessage) -> {
                         if (!isAvailable) {
-                            new androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                                    .setTitle("Статус Shizuku")
-                                    .setMessage(statusMessage)
-                                    .setPositiveButton("OK", null)
-                                    .show();
+                            showShizukuInstructionDialog();
                         } else if (!hasPermission) {
                             ShizukuManager.requestPermission((requestCode, grantResult) -> {
                                 if (getActivity() != null) {
@@ -402,7 +398,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                                 }
                             });
                         } else {
-                            Toast.makeText(requireContext(), statusMessage, Toast.LENGTH_SHORT).show();
+                            Toast.makeText(requireContext(), "🟢 Shizuku работает и готов к установке приложений без Root!", Toast.LENGTH_LONG).show();
                         }
                         updateShizukuSummary(shizukuPref);
                     });
@@ -446,17 +442,37 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             }
         }
 
+        private void showShizukuInstructionDialog() {
+            Context context = requireContext();
+            String instruction = ShizukuManager.getInstructionText(context);
+
+            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(context)
+                    .setTitle("Инструкция по настройке Shizuku")
+                    .setMessage(instruction);
+
+            if (ShizukuManager.isShizukuAppInstalled(context)) {
+                builder.setPositiveButton("Запустить Shizuku", (dialog, which) -> {
+                    ShizukuManager.openShizukuApp(context);
+                });
+            } else {
+                builder.setPositiveButton("Скачать Shizuku", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app"));
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(context, "Не удалось открыть браузер", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            builder.setNeutralButton("Сопряжение ADB", (dialog, which) -> showAdbPairingDialog());
+            builder.setNegativeButton("Закрыть", null);
+            builder.show();
+        }
+
         private void updateShizukuSummary(Preference shizukuPref) {
             if (shizukuPref == null) return;
-            boolean available = ShizukuManager.isAvailable();
-            boolean granted = ShizukuManager.hasPermission();
-            if (!available) {
-                shizukuPref.setSummary("Служба не запущена (нажмите для проверки)");
-            } else if (!granted) {
-                shizukuPref.setSummary("Служба запущена, нажмите для запроса прав");
-            } else {
-                shizukuPref.setSummary("Служба запущена, доступ предоставлен");
-            }
+            shizukuPref.setSummary(ShizukuManager.getStatusSummary(requireContext()));
         }
 
         private void showSystemInfoDialog() {
@@ -650,7 +666,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                             Toast.makeText(getContext(), "Разрешение Shizuku уже предоставлено", Toast.LENGTH_SHORT).show();
                         }
                     } else {
-                        Toast.makeText(getContext(), "Служба Shizuku не запущена", Toast.LENGTH_SHORT).show();
+                        showShizukuInstructionDialog();
                     }
                     return true;
                 });
