@@ -68,6 +68,22 @@
             app:dependency="fullscreen_overlay_enabled" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Масштаб интерфейса приложения">
+        <SeekBarPreference
+            app:key="local_app_scale_percent"
+            app:title="Размер интерфейса (%)"
+            app:summary="Изменяет масштаб только в этом приложении. Требуется перезапуск."
+            app:min="50"
+            android:max="250"
+            app:defaultValue="100"
+            app:showSeekBarValue="true" />
+
+        <Preference
+            app:key="restart_app_scale"
+            app:title="Перезагрузить приложение"
+            app:summary="Нажмите для применения нового масштаба" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="Настройки ADB">
         <Preference
             app:key="adb_pairing"
