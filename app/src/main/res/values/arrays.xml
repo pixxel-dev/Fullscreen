@@ -2,12 +2,14 @@
 <resources>
     <string-array name="position_entries">
         <item>Слева</item>
-        <item>По центру</item>
         <item>Справа</item>
+        <item>Сверху</item>
+        <item>Снизу</item>
     </string-array>
     <string-array name="position_values">
         <item>left</item>
-        <item>center</item>
         <item>right</item>
+        <item>top</item>
+        <item>bottom</item>
     </string-array>
 </resources>
