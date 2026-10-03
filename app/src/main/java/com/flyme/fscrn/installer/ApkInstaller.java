@@ -6,21 +6,20 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
-import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
+import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
-
-import rikka.shizuku.Shizuku;
 
 public class ApkInstaller {
 
@@ -31,8 +30,8 @@ public class ApkInstaller {
     }
 
     public static void installApk(Context context, File file) {
-        // Entry point for background installation if possible, fallback to PackageInstaller
-        if (Shizuku.pingBinder()) {
+        // Priority sequence: 1. Shizuku -> 2. Native ADB (TLS) -> 3. Local ADB -> 4. Standard PackageInstaller
+        if (ShizukuManager.isAvailable()) {
             installApkWithShizuku(context, file);
             return;
         }
@@ -71,23 +70,33 @@ public class ApkInstaller {
     }
 
     public static void installApkWithShizuku(Context context, File file) {
-        if (!Shizuku.pingBinder()) {
+        if (!ShizukuManager.isAvailable()) {
             Toast.makeText(context, "Shizuku не запущен или недоступен", Toast.LENGTH_LONG).show();
             return;
         }
 
-        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-            Shizuku.requestPermission(1001);
-            Toast.makeText(context, "Запрошено разрешение Shizuku, попробуйте еще раз", Toast.LENGTH_SHORT).show();
+        if (!ShizukuManager.hasPermission()) {
+            ShizukuManager.requestPermission(null);
+            Toast.makeText(context, "Запрошено разрешение Shizuku, повторите установку после смены прав", Toast.LENGTH_SHORT).show();
             return;
         }
 
         Toast.makeText(context, "Начинаю установку через Shizuku...", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             try {
-                Process process = Shizuku.newProcess(new String[]{"pm", "install", "-r", "--user", "10", file.getAbsolutePath()}, null, null);
+                int userId = 0;
+                try {
+                    int handleId = Process.myUserHandle().hashCode();
+                    if (handleId >= 0) {
+                        userId = handleId;
+                    }
+                } catch (Throwable ignored) {}
 
-                java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()));
+                String userIdStr = String.valueOf(userId);
+                java.lang.Process process = rikka.shizuku.Shizuku.newProcess(
+                        new String[]{"pm", "install", "-r", "--user", userIdStr, file.getAbsolutePath()}, null, null);
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 String line;
                 StringBuilder output = new StringBuilder();
                 while ((line = reader.readLine()) != null) {
@@ -98,14 +107,14 @@ public class ApkInstaller {
                 final String result = output.toString().trim();
                 runOnMain(context, () -> {
                     if (result.contains("Success")) {
-                        Toast.makeText(context, "Успешно установлено", Toast.LENGTH_LONG).show();
+                        Toast.makeText(context, "Успешно установлено через Shizuku", Toast.LENGTH_LONG).show();
                     } else {
-                        Toast.makeText(context, "Ошибка: " + result, Toast.LENGTH_LONG).show();
+                        Toast.makeText(context, "Ошибка установки Shizuku: " + (result.isEmpty() ? "Неизвестная ошибка" : result), Toast.LENGTH_LONG).show();
                     }
                 });
             } catch (Exception e) {
-                e.printStackTrace();
-                runOnMain(context, () -> Toast.makeText(context, "Сбой: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                Log.e(TAG, "Shizuku install error", e);
+                runOnMain(context, () -> Toast.makeText(context, "Сбой установки Shizuku: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
         }).start();
     }

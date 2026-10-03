@@ -109,7 +109,12 @@
             app:summary="Нажмите для применения нового масштаба" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Диагностика и ADB">
+    <PreferenceCategory app:title="Диагностика, ADB и Shizuku">
+        <Preference
+            app:key="shizuku_control"
+            app:title="Управление и статус Shizuku"
+            app:summary="Проверить статус службы Shizuku и запросить права доступа" />
+
         <Preference
             app:key="adb_pairing"
             app:title="Сопряжение Android 11+"
