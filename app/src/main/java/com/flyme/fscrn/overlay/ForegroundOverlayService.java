@@ -41,7 +41,6 @@ import java.util.Set;
 
 public class ForegroundOverlayService extends Service implements SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String CHANNEL_ID = "OverlayServiceChannel";
-    private static ForegroundOverlayService instance;
 
     private WindowManager defaultWindowManager;
     private WindowManager secondaryWindowManager;
@@ -75,14 +74,9 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     private Runnable packageCheckerRunnable;
     private UsageStatsManager usageStatsManager;
 
-    public static ForegroundOverlayService getInstance() {
-        return instance;
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
-        instance = this;
         currentForegroundPackage = getPackageName(); // Set to own package initially
         createNotificationChannel();
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -820,7 +814,6 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         hideSeparateButtons();
         hideCombinedOverlay();
         if (prefs != null) prefs.unregisterOnSharedPreferenceChangeListener(this);
-        instance = null;
     }
 
     @Override

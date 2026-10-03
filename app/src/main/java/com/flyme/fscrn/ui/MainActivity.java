@@ -793,11 +793,6 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             if ("separate_buttons_enabled".equals(key)) {
                 updatePreferencesVisibility();
             }
-
-            ForegroundOverlayService service = ForegroundOverlayService.getInstance();
-            if (service != null) {
-                service.updateOverlayButtons();
-            }
         }
     }
 }
