@@ -14,7 +14,7 @@ android {
         minSdk 28
         targetSdk 34
         versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 5
-        versionName "1.2.0"
+        versionName "1.2.1"
     }
 
     signingConfigs {

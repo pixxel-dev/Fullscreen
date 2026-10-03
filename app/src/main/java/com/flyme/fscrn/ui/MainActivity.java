@@ -58,6 +58,25 @@ public class MainActivity extends AppCompatActivity {
     private String downloadUrl;
     private File downloadedApk;
 
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(newBase);
+        int scalePercent = prefs.getInt("local_app_scale_percent", 100);
+
+        if (scalePercent != 100) {
+            Configuration config = new Configuration(newBase.getResources().getConfiguration());
+            float scale = scalePercent / 100.0f;
+            config.fontScale = scale;
+
+            // Calculate new density based on the default system density to avoid compounding
+            int defaultDensity = android.content.res.Resources.getSystem().getDisplayMetrics().densityDpi;
+            config.densityDpi = (int) (defaultDensity * scale);
+
+            super.attachBaseContext(newBase.createConfigurationContext(config));
+        } else {
+            super.attachBaseContext(newBase);
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,7 +111,6 @@ public class MainActivity extends AppCompatActivity {
             if (selectedFragment != null) {
                 getSupportFragmentManager()
                         .beginTransaction()
-                        .setCustomAnimations(R.anim.fade_in, R.anim.fade_out)
                         .replace(R.id.fragment_container, selectedFragment, tag)
                         .commit();
             }
@@ -363,6 +381,24 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
+            SeekBarPreference localScalePref = findPreference("local_app_scale_percent");
+            if (localScalePref != null) {
+                localScalePref.setOnPreferenceChangeListener((preference, newValue) -> {
+                    Toast.makeText(getContext(), "Требуется перезапуск приложения для применения масштаба", Toast.LENGTH_LONG).show();
+                    return true;
+                });
+            }
+
+            Preference restartAppPref = findPreference("restart_app_scale");
+            if (restartAppPref != null) {
+                restartAppPref.setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(requireContext(), MainActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    Runtime.getRuntime().exit(0);
+                    return true;
+                });
+            }
         }
 
         private void showAdbPairingDialog() {
