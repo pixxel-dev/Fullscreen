@@ -2,6 +2,33 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <PreferenceCategory app:title="Объединение кнопок">
+        <SwitchPreferenceCompat
+            app:key="combine_buttons_enabled"
+            app:title="Объединить плавающие кнопки"
+            app:summary="Кнопки «Быстрый запуск» и «Разворот» будут объединены в единый блок"
+            app:defaultValue="true" />
+
+        <ListPreference
+            app:key="combined_position_x"
+            app:title="Расположение блока"
+            app:summary="Выберите сторону экрана"
+            app:entries="@array/position_entries"
+            app:entryValues="@array/position_values"
+            app:defaultValue="left"
+            app:useSimpleSummaryProvider="true"
+            app:dependency="combine_buttons_enabled" />
+
+        <SeekBarPreference
+            app:key="combined_button_size"
+            app:title="Размер кнопок в блоке"
+            app:min="30"
+            android:max="150"
+            app:defaultValue="48"
+            app:showSeekBarValue="true"
+            app:dependency="combine_buttons_enabled" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="Меню быстрого запуска">
         <SwitchPreferenceCompat
             app:key="quick_launch_enabled"

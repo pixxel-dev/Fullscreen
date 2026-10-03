@@ -61,6 +61,12 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     private View fullscreenToggleViewSecondary;
     private WindowManager.LayoutParams fullscreenToggleParamsSecondary;
 
+    private android.widget.LinearLayout combinedView;
+    private WindowManager.LayoutParams combinedParams;
+
+    private android.widget.LinearLayout combinedViewSecondary;
+    private WindowManager.LayoutParams combinedParamsSecondary;
+
     private boolean isTargetAppFullscreen = false;
     private String currentForegroundPackage = "";
     private String activeFullscreenPackage = "";
@@ -96,7 +102,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         handler = new Handler(Looper.getMainLooper());
         setupPackageChecker();
 
-        updateQuickLaunchButton();
+        updateOverlayButtons();
     }
 
     @Override
@@ -157,9 +163,6 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     }
 
     private void handlePackageChange(String newPackage) {
-        // Only reset fullscreen state if the new package isn't the active fullscreen package,
-        // isn't the overlay package itself, AND we are actually tracking an active fullscreen package.
-        // Also avoid resetting if the system launcher or system ui temporarily gains focus.
         if (isTargetAppFullscreen
                 && !newPackage.equals(activeFullscreenPackage)
                 && !newPackage.equals(getPackageName())
@@ -170,7 +173,208 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         }
 
         currentForegroundPackage = newPackage;
-        checkFullscreenCondition();
+        updateOverlayButtons();
+    }
+
+    public void updateOverlayButtons() {
+        boolean combineEnabled = prefs.getBoolean("combine_buttons_enabled", true);
+
+        if (combineEnabled) {
+            hideSeparateButtons();
+            updateCombinedOverlay();
+        } else {
+            hideCombinedOverlay();
+            updateQuickLaunchButton();
+            checkFullscreenCondition();
+        }
+    }
+
+    private void hideSeparateButtons() {
+        if (quickLaunchView != null) {
+            defaultWindowManager.removeView(quickLaunchView);
+            quickLaunchView = null;
+        }
+        if (quickLaunchViewSecondary != null) {
+            secondaryWindowManager.removeView(quickLaunchViewSecondary);
+            quickLaunchViewSecondary = null;
+        }
+        if (fullscreenToggleView != null) {
+            defaultWindowManager.removeView(fullscreenToggleView);
+            fullscreenToggleView = null;
+        }
+        if (fullscreenToggleViewSecondary != null) {
+            secondaryWindowManager.removeView(fullscreenToggleViewSecondary);
+            fullscreenToggleViewSecondary = null;
+        }
+    }
+
+    private void hideCombinedOverlay() {
+        if (combinedView != null) {
+            defaultWindowManager.removeView(combinedView);
+            combinedView = null;
+        }
+        if (combinedViewSecondary != null) {
+            secondaryWindowManager.removeView(combinedViewSecondary);
+            combinedViewSecondary = null;
+        }
+    }
+
+    private void updateCombinedOverlay() {
+        boolean showQuickLaunch = prefs.getBoolean("quick_launch_enabled", false);
+
+        Set<String> fullscreenApps = prefs.getStringSet("fullscreen_apps", Collections.emptySet());
+        boolean isCurrentAppTarget = fullscreenApps.contains(currentForegroundPackage);
+        boolean showFullscreen = (prefs.getBoolean("fullscreen_overlay_enabled", false) && isCurrentAppTarget) || isTargetAppFullscreen;
+
+        if (!showQuickLaunch && !showFullscreen) {
+            hideCombinedOverlay();
+            return;
+        }
+
+        int sizeDp = prefs.getInt("combined_button_size", 48);
+        int sizePx = (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, sizeDp, getResources().getDisplayMetrics());
+
+        String positionX = prefs.getString("combined_position_x", "left");
+        int gravity = Gravity.TOP;
+        int oppositeGravity = Gravity.TOP;
+        if ("right".equals(positionX)) {
+            gravity |= Gravity.END;
+            oppositeGravity |= Gravity.START;
+        } else if ("center".equals(positionX)) {
+            gravity |= Gravity.CENTER_HORIZONTAL;
+            oppositeGravity |= Gravity.CENTER_HORIZONTAL;
+        } else {
+            gravity |= Gravity.START;
+            oppositeGravity |= Gravity.END;
+        }
+
+        // Setup or rebuild primary combined view
+        if (combinedView != null) {
+            defaultWindowManager.removeView(combinedView);
+            combinedView = null;
+        }
+
+        combinedView = createCombinedLinearLayout(this, showQuickLaunch, showFullscreen, sizePx, false, defaultWindowManager);
+        int layoutFlag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_PHONE;
+
+        combinedParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutFlag,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+
+        combinedParams.gravity = gravity;
+        combinedParams.y = prefs.getInt("combined_position_y", 200);
+
+        defaultWindowManager.addView(combinedView, combinedParams);
+
+        // Setup or rebuild secondary combined view for display 1003
+        if (secondaryWindowManager != defaultWindowManager && secondaryContext != null) {
+            if (combinedViewSecondary != null) {
+                secondaryWindowManager.removeView(combinedViewSecondary);
+                combinedViewSecondary = null;
+            }
+
+            combinedViewSecondary = createCombinedLinearLayout(secondaryContext, showQuickLaunch, showFullscreen, sizePx, true, secondaryWindowManager);
+            combinedParamsSecondary = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    layoutFlag,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    PixelFormat.TRANSLUCENT);
+
+            combinedParamsSecondary.gravity = oppositeGravity;
+            combinedParamsSecondary.y = prefs.getInt("combined_position_y", 200);
+
+            secondaryWindowManager.addView(combinedViewSecondary, combinedParamsSecondary);
+        }
+    }
+
+    private android.widget.LinearLayout createCombinedLinearLayout(Context context, boolean showQuickLaunch, boolean showFullscreen, int sizePx, boolean isSecondary, WindowManager wm) {
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        int marginPx = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4, getResources().getDisplayMetrics());
+
+        if (showQuickLaunch) {
+            View qlItem = LayoutInflater.from(context).inflate(R.layout.overlay_layout, layout, false);
+            ImageView iv = qlItem.findViewById(R.id.overlay_image_view);
+            iv.setImageResource(R.drawable.ic_menu);
+            iv.getLayoutParams().width = sizePx;
+            iv.getLayoutParams().height = sizePx;
+
+            android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) qlItem.getLayoutParams();
+            lp.setMargins(0, marginPx, 0, marginPx);
+
+            setupCombinedButtonTouch(qlItem, "combined_position_y", this::showQuickLaunchMenu, wm, isSecondary);
+            layout.addView(qlItem);
+        }
+
+        if (showFullscreen) {
+            View fsItem = LayoutInflater.from(context).inflate(R.layout.overlay_layout, layout, false);
+            ImageView iv = fsItem.findViewById(R.id.overlay_image_view);
+            iv.setImageResource(isTargetAppFullscreen ? R.drawable.ic_fullscreen_exit : R.drawable.ic_fullscreen_enter);
+            iv.getLayoutParams().width = sizePx;
+            iv.getLayoutParams().height = sizePx;
+
+            android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) fsItem.getLayoutParams();
+            lp.setMargins(0, marginPx, 0, marginPx);
+
+            setupCombinedButtonTouch(fsItem, "combined_position_y", this::toggleFullscreen, wm, isSecondary);
+            layout.addView(fsItem);
+        }
+
+        return layout;
+    }
+
+    private void setupCombinedButtonTouch(View buttonView, String prefKey, Runnable onClick, WindowManager wm, boolean isSecondary) {
+        buttonView.setOnTouchListener(new View.OnTouchListener() {
+            private int initialY;
+            private float initialTouchY;
+            private boolean isClick;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                WindowManager.LayoutParams params = isSecondary ? combinedParamsSecondary : combinedParams;
+                View container = isSecondary ? combinedViewSecondary : combinedView;
+                if (params == null || container == null) return false;
+
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initialY = params.y;
+                        initialTouchY = event.getRawY();
+                        isClick = true;
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        int deltaY = (int) (event.getRawY() - initialTouchY);
+                        if (Math.abs(deltaY) > ViewConfiguration.get(ForegroundOverlayService.this).getScaledTouchSlop()) {
+                            isClick = false;
+                        }
+                        if (!isClick) {
+                            params.y = initialY + deltaY;
+                            wm.updateViewLayout(container, params);
+                            if (!isSecondary && combinedParamsSecondary != null && combinedViewSecondary != null) {
+                                combinedParamsSecondary.y = params.y;
+                                secondaryWindowManager.updateViewLayout(combinedViewSecondary, combinedParamsSecondary);
+                            }
+                        }
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (isClick) {
+                            onClick.run();
+                        } else {
+                            prefs.edit().putInt(prefKey, params.y).apply();
+                        }
+                        return true;
+                }
+                return true;
+            }
+        });
     }
 
     private void checkFullscreenCondition() {
@@ -186,7 +390,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     }
 
     public void updateFullscreenState() {
-        checkFullscreenCondition();
+        updateOverlayButtons();
     }
 
     public void updateQuickLaunchButton() {
@@ -418,7 +622,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
             }
         }
 
-        checkFullscreenCondition(); // force re-evaluation of visibility
+        updateOverlayButtons(); // force re-evaluation of visibility
     }
 
     private void showQuickLaunchMenu() {
@@ -514,10 +718,8 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
         if (handler != null && packageCheckerRunnable != null) {
             handler.removeCallbacks(packageCheckerRunnable);
         }
-        if (quickLaunchView != null) defaultWindowManager.removeView(quickLaunchView);
-        if (quickLaunchViewSecondary != null) secondaryWindowManager.removeView(quickLaunchViewSecondary);
-        if (fullscreenToggleView != null) defaultWindowManager.removeView(fullscreenToggleView);
-        if (fullscreenToggleViewSecondary != null) secondaryWindowManager.removeView(fullscreenToggleViewSecondary);
+        hideSeparateButtons();
+        hideCombinedOverlay();
         if (prefs != null) prefs.unregisterOnSharedPreferenceChangeListener(this);
         instance = null;
     }
@@ -525,8 +727,7 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         if (key != null) {
-            updateQuickLaunchButton();
-            updateFullscreenState();
+            updateOverlayButtons();
         }
     }
 }
