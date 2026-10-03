@@ -356,7 +356,8 @@ public class MainActivity extends AppCompatActivity {
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         }
 
-        // This will force the menu to be redrawn with the new icon
+        // Smooth transition animation when recreating the activity for theme change
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         invalidateOptionsMenu();
     }
 
@@ -367,6 +368,7 @@ public class MainActivity extends AppCompatActivity {
             populateAppsList("quick_launch_apps");
             populateAppsList("fullscreen_apps");
             setupAppInfo();
+            updatePreferencesVisibility();
 
             Preference usageStatsPref = findPreference("request_usage_stats");
             if (usageStatsPref != null) {
@@ -499,18 +501,36 @@ public class MainActivity extends AppCompatActivity {
             getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(this);
         }
 
+        private void updatePreferencesVisibility() {
+            SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+            boolean combineEnabled = prefs.getBoolean("combine_buttons_enabled", true);
+
+            Preference qlPosX = findPreference("ql_position_x");
+            Preference qlSize = findPreference("ql_button_size");
+            Preference fsPosX = findPreference("fs_position_x");
+            Preference fsSize = findPreference("fs_button_size");
+
+            Preference combinedPosX = findPreference("combined_position_x");
+            Preference combinedSize = findPreference("combined_button_size");
+
+            if (qlPosX != null) qlPosX.setVisible(!combineEnabled);
+            if (qlSize != null) qlSize.setVisible(!combineEnabled);
+            if (fsPosX != null) fsPosX.setVisible(!combineEnabled);
+            if (fsSize != null) fsSize.setVisible(!combineEnabled);
+
+            if (combinedPosX != null) combinedPosX.setVisible(combineEnabled);
+            if (combinedSize != null) combinedSize.setVisible(combineEnabled);
+        }
+
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if ("quick_launch_enabled".equals(key) || "ql_position_x".equals(key) || "ql_button_size".equals(key)) {
-                ForegroundOverlayService service = ForegroundOverlayService.getInstance();
-                if (service != null) {
-                    service.updateQuickLaunchButton();
-                }
-            } else if ("fullscreen_overlay_enabled".equals(key) || "fullscreen_apps".equals(key) || "fs_position_x".equals(key) || "fs_button_size".equals(key)) {
-                ForegroundOverlayService service = ForegroundOverlayService.getInstance();
-                if (service != null) {
-                    service.updateFullscreenState();
-                }
+            if ("combine_buttons_enabled".equals(key)) {
+                updatePreferencesVisibility();
+            }
+
+            ForegroundOverlayService service = ForegroundOverlayService.getInstance();
+            if (service != null) {
+                service.updateOverlayButtons();
             }
         }
     }
