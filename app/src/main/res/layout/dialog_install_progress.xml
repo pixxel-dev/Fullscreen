@@ -15,10 +15,18 @@
         android:layout_marginBottom="16dp" />
 
     <TextView
+        android:id="@+id/tv_step_pine"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⏳ 0. Pine Framework Hook (Тихая установка): ожидание..."
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
         android:id="@+id/tv_step_shizuku"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⏳ 1. Shizuku API (Тихая установка): проверка..."
+        android:text="⏳ 1. Shizuku API (Тихая установка): ожидание..."
         android:textSize="14sp"
         android:layout_marginBottom="8dp" />
 

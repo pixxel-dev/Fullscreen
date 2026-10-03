@@ -49,6 +49,7 @@ public class ApkInstaller {
         View dialogView = inflater.inflate(R.layout.dialog_install_progress, null);
 
         TextView tvFileName = dialogView.findViewById(R.id.tv_install_file_name);
+        TextView tvPine = dialogView.findViewById(R.id.tv_step_pine);
         TextView tvShizuku = dialogView.findViewById(R.id.tv_step_shizuku);
         TextView tvNativeAdb = dialogView.findViewById(R.id.tv_step_native_adb);
         TextView tvLocalAdb = dialogView.findViewById(R.id.tv_step_local_adb);
@@ -64,7 +65,24 @@ public class ApkInstaller {
                 .setNegativeButton("Закрыть", null)
                 .show();
 
-        runStep1_Shizuku(context, file, tvShizuku, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
+        runStep0_Pine(context, file, tvPine, tvShizuku, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
+    }
+
+    private static void runStep0_Pine(Context context, File file, TextView tvPine, TextView tvShizuku, TextView tvNativeAdb, TextView tvLocalAdb, TextView tvPackageInstaller, TextView tvFileProvider, ProgressBar progressBar) {
+        runOnMain(context, () -> tvPine.setText("⏳ 0. Pine Framework Hook: Запуск..."));
+        PineInstaller.installApk(context, file, (success, message) -> {
+            if (success) {
+                runOnMain(context, () -> {
+                    tvPine.setText("✅ 0. Pine Framework Hook: " + message);
+                    progressBar.setVisibility(View.GONE);
+                });
+            } else {
+                runOnMain(context, () -> {
+                    tvPine.setText("❌ 0. Pine Framework Hook: " + message);
+                    runStep1_Shizuku(context, file, tvShizuku, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
+                });
+            }
+        });
     }
 
     private static void runStep1_Shizuku(Context context, File file, TextView tvShizuku, TextView tvNativeAdb, TextView tvLocalAdb, TextView tvPackageInstaller, TextView tvFileProvider, ProgressBar progressBar) {
