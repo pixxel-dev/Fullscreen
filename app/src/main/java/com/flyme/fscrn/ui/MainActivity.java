@@ -138,6 +138,47 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         checkForUpdates();
     }
 
+    private long updateDownloadId = -1;
+    private android.content.BroadcastReceiver updateReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            long id = intent.getLongExtra(android.app.DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+            if (id == updateDownloadId && updateDownloadId != -1) {
+                android.app.DownloadManager manager = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                if (manager != null) {
+                    android.database.Cursor cursor = manager.query(new android.app.DownloadManager.Query().setFilterById(updateDownloadId));
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int statusIndex = cursor.getColumnIndex(android.app.DownloadManager.COLUMN_STATUS);
+                        if (statusIndex != -1) {
+                            int status = cursor.getInt(statusIndex);
+                            if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                                if (updateProgress != null) updateProgress.setVisibility(View.GONE);
+                                if (btnUpdateInstall != null) btnUpdateInstall.setVisibility(View.VISIBLE);
+                                Toast.makeText(context, "Обновление загружено", Toast.LENGTH_SHORT).show();
+                                if (downloadedApk != null && downloadedApk.exists()) {
+                                    ApkInstaller.installApk(MainActivity.this, downloadedApk);
+                                }
+                            } else if (status == android.app.DownloadManager.STATUS_FAILED) {
+                                if (updateProgress != null) updateProgress.setVisibility(View.GONE);
+                                if (btnUpdateDownload != null) btnUpdateDownload.setVisibility(View.VISIBLE);
+                                Toast.makeText(context, "Ошибка при скачивании обновления", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                        cursor.close();
+                    }
+                }
+            }
+        }
+    };
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            unregisterReceiver(updateReceiver);
+        } catch (IllegalArgumentException ignored) {}
+    }
+
     private void setupUpdatePanel() {
         updateCard = findViewById(R.id.update_card);
         updateTitle = findViewById(R.id.update_title);
@@ -154,6 +195,12 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                 Toast.makeText(this, "Файл обновления не найден, попробуйте скачать заново", Toast.LENGTH_SHORT).show();
             }
         });
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(updateReceiver, new android.content.IntentFilter(android.app.DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED);
+        } else {
+            registerReceiver(updateReceiver, new android.content.IntentFilter(android.app.DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        }
     }
 
     private void checkForUpdates() {
@@ -265,10 +312,13 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
         android.app.DownloadManager manager = (android.app.DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
         if (manager != null) {
-            manager.enqueue(request);
+            updateDownloadId = manager.enqueue(request);
             Toast.makeText(this, "Загрузка началась", Toast.LENGTH_SHORT).show();
-            if (btnUpdateInstall != null) {
-                btnUpdateInstall.setVisibility(View.VISIBLE);
+            if (btnUpdateDownload != null) {
+                btnUpdateDownload.setVisibility(View.GONE);
+            }
+            if (updateProgress != null) {
+                updateProgress.setVisibility(View.VISIBLE);
             }
         }
     }
