@@ -177,15 +177,15 @@ public class ForegroundOverlayService extends Service implements SharedPreferenc
     }
 
     public void updateOverlayButtons() {
-        boolean combineEnabled = prefs.getBoolean("combine_buttons_enabled", true);
+        boolean separateEnabled = prefs.getBoolean("separate_buttons_enabled", false);
 
-        if (combineEnabled) {
-            hideSeparateButtons();
-            updateCombinedOverlay();
-        } else {
+        if (separateEnabled) {
             hideCombinedOverlay();
             updateQuickLaunchButton();
             checkFullscreenCondition();
+        } else {
+            hideSeparateButtons();
+            updateCombinedOverlay();
         }
     }
 
