@@ -109,12 +109,17 @@
             app:summary="Нажмите для применения нового масштаба" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Настройки ADB">
+    <PreferenceCategory app:title="Диагностика и ADB">
         <Preference
             app:key="adb_pairing"
             app:title="Сопряжение Android 11+"
             app:summary="Настроить беспроводную отладку через код (без ПК)"
             app:icon="@drawable/ic_adb_pairing" />
+
+        <Preference
+            app:key="app_sys_info"
+            app:title="Собрать информацию о системе"
+            app:summary="VIN, параметры дисплеев, пользователь, PID и характеристики авто" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Права доступа">

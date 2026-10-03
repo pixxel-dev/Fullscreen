@@ -5,6 +5,7 @@ import com.flyme.fscrn.adb.NativeAdbHelper;
 import com.flyme.fscrn.filemanager.FileManagerFragment;
 import com.flyme.fscrn.installer.ApkInstaller;
 import com.flyme.fscrn.overlay.ForegroundOverlayService;
+import com.flyme.fscrn.system.LogManager;
 
 import android.content.Context;
 import android.content.Intent;
@@ -322,6 +323,15 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             }
         }
 
+        MenuItem logItem = menu.findItem(R.id.action_log_record);
+        if (logItem != null) {
+            if (LogManager.getInstance().isRecording()) {
+                logItem.setTitle("Стоп запись лога");
+            } else {
+                logItem.setTitle("Запись лога");
+            }
+        }
+
         MenuItem pasteItem = menu.findItem(R.id.action_paste);
         if (pasteItem != null) {
             Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
@@ -340,6 +350,9 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         if (item.getItemId() == R.id.action_theme_toggle) {
             toggleTheme();
             return true;
+        } else if (item.getItemId() == R.id.action_log_record) {
+            toggleLogRecording();
+            return true;
         } else if (item.getItemId() == R.id.action_paste) {
             Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
             if (f instanceof FileManagerFragment) {
@@ -348,6 +361,32 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void toggleLogRecording() {
+        LogManager logManager = LogManager.getInstance();
+        if (!logManager.isRecording()) {
+            logManager.startRecording();
+            Toast.makeText(this, "Запись лога запущенa", Toast.LENGTH_SHORT).show();
+            invalidateOptionsMenu();
+        } else {
+            String logText = logManager.stopRecording();
+            invalidateOptionsMenu();
+
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Записанный лог")
+                    .setMessage(logText.length() > 2000 ? logText.substring(0, 2000) + "\n... [Лог слишком длинный, нажмите «Скопировать»]" : logText)
+                    .setPositiveButton("Скопировать в буфер обмена", (dialog, which) -> {
+                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                        android.content.ClipData clip = android.content.ClipData.newPlainText("App Log", logText);
+                        if (clipboard != null) {
+                            clipboard.setPrimaryClip(clip);
+                            Toast.makeText(this, "Лог скопирован в буфер обмена", Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton("Закрыть", null)
+                    .show();
+        }
     }
 
     private void applyScreenSnapshotCrossfade() {
@@ -440,6 +479,14 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                 });
             }
 
+            Preference sysInfoPref = findPreference("app_sys_info");
+            if (sysInfoPref != null) {
+                sysInfoPref.setOnPreferenceClickListener(preference -> {
+                    showSystemInfoDialog();
+                    return true;
+                });
+            }
+
             SeekBarPreference localScalePref = findPreference("local_app_scale_percent");
             if (localScalePref != null) {
                 localScalePref.setOnPreferenceChangeListener((preference, newValue) -> {
@@ -458,6 +505,25 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                     return true;
                 });
             }
+        }
+
+        private void showSystemInfoDialog() {
+            Context context = requireContext();
+            String sysInfoText = LogManager.getInstance().gatherSystemInformation(context);
+
+            new androidx.appcompat.app.AlertDialog.Builder(context)
+                    .setTitle("Информация о системе")
+                    .setMessage(sysInfoText)
+                    .setPositiveButton("Скопировать в буфер обмена", (dialog, which) -> {
+                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+                        android.content.ClipData clip = android.content.ClipData.newPlainText("System Info", sysInfoText);
+                        if (clipboard != null) {
+                            clipboard.setPrimaryClip(clip);
+                            Toast.makeText(context, "Информация о системе скопирована", Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton("Закрыть", null)
+                    .show();
         }
 
         private void showAdbPairingDialog() {
