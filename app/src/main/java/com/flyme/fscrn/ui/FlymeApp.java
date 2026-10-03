@@ -1,4 +1,4 @@
-package com.flyme.fscrn.ui;
+package com.flyme.fscrn;
 
 import android.app.Application;
 import android.content.SharedPreferences;

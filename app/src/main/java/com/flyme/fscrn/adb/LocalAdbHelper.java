@@ -1,4 +1,4 @@
-package com.flyme.fscrn.adb;
+package com.flyme.fscrn;
 
 import android.content.Context;
 import android.util.Base64;
