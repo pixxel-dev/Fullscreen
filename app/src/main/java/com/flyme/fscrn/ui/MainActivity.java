@@ -203,7 +203,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         }
     }
 
-    private void checkForUpdates() {
+        public void checkForUpdates(boolean manualCheck) {
         new Thread(() -> {
             try {
                 URL url = new URL("https://api.github.com/repos/pixxel-dev/Fullscreen/releases/latest");
@@ -250,21 +250,43 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                                 updateDescription.setVisibility(View.VISIBLE);
                             }
                             updateCard.setVisibility(View.VISIBLE);
+                            if (manualCheck) {
+                                Toast.makeText(MainActivity.this, "Найдено обновление!", Toast.LENGTH_SHORT).show();
+                            }
                         });
+                    } else {
+                        if (manualCheck) {
+                            runOnUiThread(() -> {
+                                Toast.makeText(MainActivity.this, "У вас установлена последняя версия", Toast.LENGTH_SHORT).show();
+                            });
+                        }
                     }
                 } else {
-                    Log.w("UpdateCheck", "GitHub API returned code " + conn.getResponseCode());
+                    int responseCode = conn.getResponseCode();
+                    Log.w("UpdateCheck", "GitHub API returned code " + responseCode);
+                    if (manualCheck) {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Ошибка сервера (Код " + responseCode + ")", Toast.LENGTH_SHORT).show());
+                    }
                 }
             } catch (Exception e) {
                 Log.e("UpdateCheck", "Error checking updates", e);
+                if (manualCheck) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Ошибка проверки: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                }
             }
         }).start();
+    }
+
+    private void checkForUpdates() {
+        checkForUpdates(false);
     }
 
     private boolean isNewerVersion(String tag) {
         try {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             String currentVersion = pInfo.versionName;
+            long currentVersionCode = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P ? pInfo.getLongVersionCode() : pInfo.versionCode;
+            
             if (currentVersion == null || tag == null || tag.isEmpty()) return false;
 
             String cleanTag = tag.replaceAll("^v", "").trim();
@@ -284,11 +306,11 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                 if (t < c) return false;
             }
 
-            if (cleanTag.contains("build") && cleanCurrent.contains("build")) {
+            // Semantic versions are equal. Let's compare build numbers.
+            if (cleanTag.contains("build")) {
                 try {
                     int tagBuild = Integer.parseInt(cleanTag.substring(cleanTag.lastIndexOf("build") + 5).replaceAll("[^0-9]", ""));
-                    int currentBuild = Integer.parseInt(cleanCurrent.substring(cleanCurrent.lastIndexOf("build") + 5).replaceAll("[^0-9]", ""));
-                    return tagBuild > currentBuild;
+                    return tagBuild > currentVersionCode;
                 } catch (Exception ignored) {}
             }
         } catch (Exception e) {
@@ -444,6 +466,17 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             updatePreferencesVisibility();
 
             setupPermissionsSubscreen();
+
+            Preference checkUpdatesPref = findPreference("check_updates");
+            if (checkUpdatesPref != null) {
+                checkUpdatesPref.setOnPreferenceClickListener(preference -> {
+                    Toast.makeText(requireContext(), "Проверка обновлений...", Toast.LENGTH_SHORT).show();
+                    if (getActivity() instanceof MainActivity) {
+                        ((MainActivity) getActivity()).checkForUpdates(true);
+                    }
+                    return true;
+                });
+            }
 
             Preference shizukuPref = findPreference("shizuku_control");
             if (shizukuPref != null) {

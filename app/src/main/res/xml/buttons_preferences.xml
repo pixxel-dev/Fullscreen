@@ -167,6 +167,11 @@
     </PreferenceCategory>
 
     <Preference
+        app:key="check_updates"
+        app:title="Проверить обновления"
+        app:summary="Загрузить последнюю версию с GitHub" />
+
+    <Preference
         app:key="app_info"
         app:layout="@layout/pref_about"
         app:selectable="false" />
