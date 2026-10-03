@@ -50,7 +50,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import com.google.android.material.card.MaterialCardView;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements PreferenceFragmentCompat.OnPreferenceStartScreenCallback {
     private static android.graphics.Bitmap previousScreenSnapshot = null;
 
     private SharedPreferences sharedPreferences;
@@ -364,7 +364,7 @@ public class MainActivity extends AppCompatActivity {
 
             overlayView.animate()
                     .alpha(0.0f)
-                    .setDuration(800)
+                    .setDuration(400)
                     .setListener(new android.animation.AnimatorListenerAdapter() {
                         @Override
                         public void onAnimationEnd(android.animation.Animator animation) {
@@ -407,6 +407,20 @@ public class MainActivity extends AppCompatActivity {
         captureScreenSnapshotAndRestart();
     }
 
+    @Override
+    public boolean onPreferenceStartScreen(PreferenceFragmentCompat caller, androidx.preference.PreferenceScreen pref) {
+        Fragment fragment = new SettingsFragment();
+        Bundle args = new Bundle();
+        args.putString(PreferenceFragmentCompat.ARG_PREFERENCE_ROOT, pref.getKey());
+        fragment.setArguments(args);
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragment_container, fragment, pref.getKey())
+                .addToBackStack(pref.getKey())
+                .commit();
+        return true;
+    }
+
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
         @Override
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
@@ -416,14 +430,7 @@ public class MainActivity extends AppCompatActivity {
             setupAppInfo();
             updatePreferencesVisibility();
 
-            Preference usageStatsPref = findPreference("request_usage_stats");
-            if (usageStatsPref != null) {
-                usageStatsPref.setOnPreferenceClickListener(preference -> {
-                    Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-                    startActivity(intent);
-                    return true;
-                });
-            }
+            setupPermissionsSubscreen();
 
             Preference adbPairingPref = findPreference("adb_pairing");
             if (adbPairingPref != null) {
@@ -539,6 +546,7 @@ public class MainActivity extends AppCompatActivity {
         public void onResume() {
             super.onResume();
             getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(this);
+            updatePermissionsStates();
         }
 
         @Override
@@ -547,9 +555,145 @@ public class MainActivity extends AppCompatActivity {
             getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(this);
         }
 
+        private void setupPermissionsSubscreen() {
+            androidx.preference.SwitchPreferenceCompat permUsageStats = findPreference("perm_usage_stats");
+            if (permUsageStats != null) {
+                permUsageStats.setOnPreferenceClickListener(preference -> {
+                    startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                    return true;
+                });
+            }
+
+            androidx.preference.SwitchPreferenceCompat permOverlay = findPreference("perm_overlay");
+            if (permOverlay != null) {
+                permOverlay.setOnPreferenceClickListener(preference -> {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + requireContext().getPackageName()));
+                    startActivity(intent);
+                    return true;
+                });
+            }
+
+            androidx.preference.SwitchPreferenceCompat permStorage = findPreference("perm_manage_storage");
+            if (permStorage != null) {
+                permStorage.setOnPreferenceClickListener(preference -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                            intent.setData(Uri.parse("package:" + requireContext().getPackageName()));
+                            startActivity(intent);
+                        } catch (Exception e) {
+                            startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                        }
+                    } else {
+                        requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE, android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, 101);
+                    }
+                    return true;
+                });
+            }
+
+            androidx.preference.SwitchPreferenceCompat permInstall = findPreference("perm_install_packages");
+            if (permInstall != null) {
+                permInstall.setOnPreferenceClickListener(preference -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + requireContext().getPackageName()));
+                        startActivity(intent);
+                    }
+                    return true;
+                });
+            }
+
+            androidx.preference.SwitchPreferenceCompat permNotifications = findPreference("perm_notifications");
+            if (permNotifications != null) {
+                permNotifications.setOnPreferenceClickListener(preference -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                        intent.putExtra(Settings.EXTRA_APP_PACKAGE, requireContext().getPackageName());
+                        startActivity(intent);
+                    }
+                    return true;
+                });
+            }
+
+            androidx.preference.SwitchPreferenceCompat permShizuku = findPreference("perm_shizuku");
+            if (permShizuku != null) {
+                permShizuku.setOnPreferenceClickListener(preference -> {
+                    if (rikka.shizuku.Shizuku.pingBinder()) {
+                        if (rikka.shizuku.Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+                            rikka.shizuku.Shizuku.requestPermission(1001);
+                        } else {
+                            Toast.makeText(getContext(), "Разрешение Shizuku уже предоставлено", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        Toast.makeText(getContext(), "Служба Shizuku не запущена", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                });
+            }
+        }
+
+        private void updatePermissionsStates() {
+            Context context = getContext();
+            if (context == null) return;
+
+            // Usage stats
+            androidx.preference.SwitchPreferenceCompat permUsageStats = findPreference("perm_usage_stats");
+            if (permUsageStats != null) {
+                android.app.usage.UsageStatsManager usm = (android.app.usage.UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
+                long now = System.currentTimeMillis();
+                List<android.app.usage.UsageStats> stats = usm != null ? usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, now - 1000 * 10, now) : null;
+                boolean hasUsageStats = stats != null && !stats.isEmpty();
+                permUsageStats.setChecked(hasUsageStats);
+            }
+
+            // Overlay
+            androidx.preference.SwitchPreferenceCompat permOverlay = findPreference("perm_overlay");
+            if (permOverlay != null) {
+                permOverlay.setChecked(Settings.canDrawOverlays(context));
+            }
+
+            // Manage Storage
+            androidx.preference.SwitchPreferenceCompat permStorage = findPreference("perm_manage_storage");
+            if (permStorage != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    permStorage.setChecked(android.os.Environment.isExternalStorageManager());
+                } else {
+                    int read = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_EXTERNAL_STORAGE);
+                    permStorage.setChecked(read == PackageManager.PERMISSION_GRANTED);
+                }
+            }
+
+            // Install packages
+            androidx.preference.SwitchPreferenceCompat permInstall = findPreference("perm_install_packages");
+            if (permInstall != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    permInstall.setChecked(context.getPackageManager().canRequestPackageInstalls());
+                } else {
+                    permInstall.setChecked(true);
+                }
+            }
+
+            // Notifications
+            androidx.preference.SwitchPreferenceCompat permNotifications = findPreference("perm_notifications");
+            if (permNotifications != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    int notif = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS);
+                    permNotifications.setChecked(notif == PackageManager.PERMISSION_GRANTED);
+                } else {
+                    permNotifications.setChecked(androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled());
+                }
+            }
+
+            // Shizuku
+            androidx.preference.SwitchPreferenceCompat permShizuku = findPreference("perm_shizuku");
+            if (permShizuku != null) {
+                boolean shizukuGranted = rikka.shizuku.Shizuku.pingBinder() && rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+                permShizuku.setChecked(shizukuGranted);
+            }
+        }
+
         private void updatePreferencesVisibility() {
             SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
-            boolean combineEnabled = prefs.getBoolean("combine_buttons_enabled", true);
+            boolean separateEnabled = prefs.getBoolean("separate_buttons_enabled", false);
 
             Preference qlPosX = findPreference("ql_position_x");
             Preference qlSize = findPreference("ql_button_size");
@@ -559,18 +703,18 @@ public class MainActivity extends AppCompatActivity {
             Preference combinedPosX = findPreference("combined_position_x");
             Preference combinedSize = findPreference("combined_button_size");
 
-            if (qlPosX != null) qlPosX.setVisible(!combineEnabled);
-            if (qlSize != null) qlSize.setVisible(!combineEnabled);
-            if (fsPosX != null) fsPosX.setVisible(!combineEnabled);
-            if (fsSize != null) fsSize.setVisible(!combineEnabled);
+            if (qlPosX != null) qlPosX.setVisible(separateEnabled);
+            if (qlSize != null) qlSize.setVisible(separateEnabled);
+            if (fsPosX != null) fsPosX.setVisible(separateEnabled);
+            if (fsSize != null) fsSize.setVisible(separateEnabled);
 
-            if (combinedPosX != null) combinedPosX.setVisible(combineEnabled);
-            if (combinedSize != null) combinedSize.setVisible(combineEnabled);
+            if (combinedPosX != null) combinedPosX.setVisible(!separateEnabled);
+            if (combinedSize != null) combinedSize.setVisible(!separateEnabled);
         }
 
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            if ("combine_buttons_enabled".equals(key)) {
+            if ("separate_buttons_enabled".equals(key)) {
                 updatePreferencesVisibility();
             }
 

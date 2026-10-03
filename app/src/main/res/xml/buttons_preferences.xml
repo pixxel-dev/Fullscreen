@@ -68,12 +68,12 @@
             app:dependency="fullscreen_overlay_enabled" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Объединение кнопок">
+    <PreferenceCategory app:title="Настройка блока кнопок">
         <SwitchPreferenceCompat
-            app:key="combine_buttons_enabled"
-            app:title="Объединить плавающие кнопки"
-            app:summary="Кнопки «Быстрый запуск» и «Разворот» будут объединены в единый блок"
-            app:defaultValue="true" />
+            app:key="separate_buttons_enabled"
+            app:title="Разделять плавающие кнопки"
+            app:summary="Управлять кнопками «Быстрый запуск» и «Разворот» отдельно"
+            app:defaultValue="false" />
 
         <ListPreference
             app:key="combined_position_x"
@@ -82,8 +82,7 @@
             app:entries="@array/position_entries"
             app:entryValues="@array/position_values"
             app:defaultValue="left"
-            app:useSimpleSummaryProvider="true"
-            app:dependency="combine_buttons_enabled" />
+            app:useSimpleSummaryProvider="true" />
 
         <SeekBarPreference
             app:key="combined_button_size"
@@ -91,8 +90,7 @@
             app:min="30"
             android:max="150"
             app:defaultValue="48"
-            app:showSeekBarValue="true"
-            app:dependency="combine_buttons_enabled" />
+            app:showSeekBarValue="true" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Масштаб интерфейса приложения">
@@ -119,11 +117,43 @@
             app:icon="@drawable/ic_adb_pairing" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Права доступа (Обязательно!)">
-        <Preference
-            app:key="request_usage_stats"
-            app:title="Разрешить доступ к истории использования"
-            app:summary="Нажмите, чтобы выдать. Нужно для работы авто-оверлея (распознавание открытых окон)" />
+    <PreferenceCategory app:title="Права доступа">
+        <PreferenceScreen
+            app:key="permissions_subscreen"
+            app:title="Разрешения приложения"
+            app:summary="Управление всеми правами из манифеста">
+
+            <SwitchPreferenceCompat
+                app:key="perm_usage_stats"
+                app:title="Доступ к истории использования"
+                app:persistent="false" />
+
+            <SwitchPreferenceCompat
+                app:key="perm_overlay"
+                app:title="Отображение поверх других окон"
+                app:persistent="false" />
+
+            <SwitchPreferenceCompat
+                app:key="perm_manage_storage"
+                app:title="Управление всем накопителем"
+                app:persistent="false" />
+
+            <SwitchPreferenceCompat
+                app:key="perm_install_packages"
+                app:title="Установка неизвестных приложений"
+                app:persistent="false" />
+
+            <SwitchPreferenceCompat
+                app:key="perm_notifications"
+                app:title="Отправка уведомлений"
+                app:persistent="false" />
+
+            <SwitchPreferenceCompat
+                app:key="perm_shizuku"
+                app:title="Доступ к Shizuku API"
+                app:persistent="false" />
+
+        </PreferenceScreen>
     </PreferenceCategory>
 
     <Preference
