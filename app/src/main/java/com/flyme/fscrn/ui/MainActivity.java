@@ -4,6 +4,7 @@ import com.flyme.fscrn.R;
 import com.flyme.fscrn.adb.NativeAdbHelper;
 import com.flyme.fscrn.filemanager.FileManagerFragment;
 import com.flyme.fscrn.installer.ApkInstaller;
+import com.flyme.fscrn.installer.ShizukuManager;
 import com.flyme.fscrn.overlay.ForegroundOverlayService;
 import com.flyme.fscrn.system.LogManager;
 
@@ -37,7 +38,6 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.content.res.Configuration;
 import android.os.Build;
-import android.content.pm.PackageInfo;
 import android.os.Handler;
 import android.os.Looper;
 import java.io.File;
@@ -234,7 +234,6 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
             // Or check versionCode if available
             long currentCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? pInfo.getLongVersionCode() : pInfo.versionCode;
-            // Usually we can't extract versionCode directly from tag, so rely on string comp
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -379,6 +378,38 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
             setupPermissionsSubscreen();
 
+            Preference shizukuPref = findPreference("shizuku_control");
+            if (shizukuPref != null) {
+                updateShizukuSummary(shizukuPref);
+                shizukuPref.setOnPreferenceClickListener(preference -> {
+                    ShizukuManager.checkStatus(requireContext(), (isAvailable, hasPermission, statusMessage) -> {
+                        if (!isAvailable) {
+                            new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                                    .setTitle("Статус Shizuku")
+                                    .setMessage(statusMessage)
+                                    .setPositiveButton("OK", null)
+                                    .show();
+                        } else if (!hasPermission) {
+                            ShizukuManager.requestPermission((requestCode, grantResult) -> {
+                                if (getActivity() != null) {
+                                    requireActivity().runOnUiThread(() -> {
+                                        updateShizukuSummary(shizukuPref);
+                                        updatePermissionsStates();
+                                        Toast.makeText(requireContext(),
+                                                grantResult == PackageManager.PERMISSION_GRANTED ? "Разрешение Shizuku получено!" : "Разрешение Shizuku отклонено",
+                                                Toast.LENGTH_SHORT).show();
+                                    });
+                                }
+                            });
+                        } else {
+                            Toast.makeText(requireContext(), statusMessage, Toast.LENGTH_SHORT).show();
+                        }
+                        updateShizukuSummary(shizukuPref);
+                    });
+                    return true;
+                });
+            }
+
             Preference adbPairingPref = findPreference("adb_pairing");
             if (adbPairingPref != null) {
                 adbPairingPref.setOnPreferenceClickListener(preference -> {
@@ -412,6 +443,19 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                     Runtime.getRuntime().exit(0);
                     return true;
                 });
+            }
+        }
+
+        private void updateShizukuSummary(Preference shizukuPref) {
+            if (shizukuPref == null) return;
+            boolean available = ShizukuManager.isAvailable();
+            boolean granted = ShizukuManager.hasPermission();
+            if (!available) {
+                shizukuPref.setSummary("Служба не запущена (нажмите для проверки)");
+            } else if (!granted) {
+                shizukuPref.setSummary("Служба запущена, нажмите для запроса прав");
+            } else {
+                shizukuPref.setSummary("Служба запущена, доступ предоставлен");
             }
         }
 
@@ -521,6 +565,10 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             super.onResume();
             getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(this);
             updatePermissionsStates();
+            Preference shizukuPref = findPreference("shizuku_control");
+            if (shizukuPref != null) {
+                updateShizukuSummary(shizukuPref);
+            }
         }
 
         @Override
@@ -591,9 +639,13 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             androidx.preference.SwitchPreferenceCompat permShizuku = findPreference("perm_shizuku");
             if (permShizuku != null) {
                 permShizuku.setOnPreferenceClickListener(preference -> {
-                    if (rikka.shizuku.Shizuku.pingBinder()) {
-                        if (rikka.shizuku.Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                            rikka.shizuku.Shizuku.requestPermission(1001);
+                    if (ShizukuManager.isAvailable()) {
+                        if (!ShizukuManager.hasPermission()) {
+                            ShizukuManager.requestPermission((requestCode, grantResult) -> {
+                                if (getActivity() != null) {
+                                    requireActivity().runOnUiThread(this::updatePermissionsStates);
+                                }
+                            });
                         } else {
                             Toast.makeText(getContext(), "Разрешение Shizuku уже предоставлено", Toast.LENGTH_SHORT).show();
                         }
@@ -660,7 +712,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             // Shizuku
             androidx.preference.SwitchPreferenceCompat permShizuku = findPreference("perm_shizuku");
             if (permShizuku != null) {
-                boolean shizukuGranted = rikka.shizuku.Shizuku.pingBinder() && rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED;
+                boolean shizukuGranted = ShizukuManager.isAvailable() && ShizukuManager.hasPermission();
                 permShizuku.setChecked(shizukuGranted);
             }
         }
