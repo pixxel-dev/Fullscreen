@@ -16,6 +16,7 @@ import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -74,7 +75,6 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             float scale = scalePercent / 100.0f;
             config.fontScale = scale;
 
-            // Calculate new density based on the default system density to avoid compounding
             int defaultDensity = android.content.res.Resources.getSystem().getDisplayMetrics().densityDpi;
             config.densityDpi = (int) (defaultDensity * scale);
 
@@ -123,11 +123,9 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             return true;
         });
 
-        // Load default fragment
         if (savedInstanceState == null) {
             bottomNav.setSelectedItemId(R.id.nav_tweaks);
         } else {
-            // Ensure the correct fragment is showing after theme toggle
             Fragment f = getSupportFragmentManager().findFragmentById(R.id.fragment_container);
             if (f instanceof SettingsFragment) {
                 bottomNav.getMenu().findItem(R.id.nav_tweaks).setChecked(true);
@@ -152,6 +150,8 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         btnUpdateInstall.setOnClickListener(v -> {
             if (downloadedApk != null && downloadedApk.exists()) {
                 ApkInstaller.installApk(this, downloadedApk);
+            } else {
+                Toast.makeText(this, "Файл обновления не найден, попробуйте скачать заново", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -162,7 +162,10 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                 URL url = new URL("https://api.github.com/repos/pixxel-dev/Fullscreen/releases/latest");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
+                conn.setRequestProperty("User-Agent", "FlymeTweak-App");
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
 
                 if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
                     BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -174,30 +177,39 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                     in.close();
 
                     JSONObject json = new JSONObject(response.toString());
-                    String tagName = json.getString("tag_name");
-                    JSONArray assets = json.getJSONArray("assets");
+                    String tagName = json.optString("tag_name", "");
+                    JSONArray assets = json.optJSONArray("assets");
 
                     String apkUrl = null;
-                    for (int i = 0; i < assets.length(); i++) {
-                        JSONObject asset = assets.getJSONObject(i);
-                        if (asset.getString("name").endsWith(".apk")) {
-                            apkUrl = asset.getString("browser_download_url");
-                            break;
+                    if (assets != null) {
+                        for (int i = 0; i < assets.length(); i++) {
+                            JSONObject asset = assets.getJSONObject(i);
+                            if (asset.optString("name", "").endsWith(".apk")) {
+                                apkUrl = asset.optString("browser_download_url", null);
+                                break;
+                            }
                         }
                     }
 
                     if (apkUrl != null && isNewerVersion(tagName)) {
                         final String finalApkUrl = apkUrl;
                         final String versionName = json.optString("name", tagName);
+                        final String body = json.optString("body", "");
                         runOnUiThread(() -> {
                             downloadUrl = finalApkUrl;
                             updateTitle.setText("Доступно обновление: " + versionName);
+                            if (!body.isEmpty() && updateDescription != null) {
+                                updateDescription.setText(body);
+                                updateDescription.setVisibility(View.VISIBLE);
+                            }
                             updateCard.setVisibility(View.VISIBLE);
                         });
                     }
+                } else {
+                    Log.w("UpdateCheck", "GitHub API returned code " + conn.getResponseCode());
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                Log.e("UpdateCheck", "Error checking updates", e);
             }
         }).start();
     }
@@ -206,16 +218,16 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         try {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             String currentVersion = pInfo.versionName;
+            if (currentVersion == null || tag == null || tag.isEmpty()) return false;
 
-            // Extract semantic version using regex (e.g., v1.2.0-build123 -> 1.2.0)
-            String cleanTag = tag.replaceAll("^v", "").split("-")[0];
-            String cleanCurrent = currentVersion.replaceAll("^v", "").split("-")[0];
+            String cleanTag = tag.replaceAll("^v", "").trim();
+            String cleanCurrent = currentVersion.replaceAll("^v", "").trim();
 
-            cleanTag = cleanTag.replaceAll("[^0-9\\.]", "");
-            cleanCurrent = cleanCurrent.replaceAll("[^0-9\\.]", "");
+            String tagSemVer = cleanTag.split("-")[0].replaceAll("[^0-9\\.]", "");
+            String currentSemVer = cleanCurrent.split("-")[0].replaceAll("[^0-9\\.]", "");
 
-            String[] tagParts = cleanTag.split("\\.");
-            String[] currentParts = cleanCurrent.split("\\.");
+            String[] tagParts = tagSemVer.split("\\.");
+            String[] currentParts = currentSemVer.split("\\.");
 
             int length = Math.max(tagParts.length, currentParts.length);
             for (int i = 0; i < length; i++) {
@@ -225,24 +237,26 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                 if (t < c) return false;
             }
 
-            // If semantic version is same, check build numbers if present
-            if (tag.contains("build") && currentVersion.contains("build")) {
-                int tagBuild = Integer.parseInt(tag.substring(tag.lastIndexOf("build") + 5));
-                int currentBuild = Integer.parseInt(currentVersion.substring(currentVersion.lastIndexOf("build") + 5));
-                return tagBuild > currentBuild;
+            if (cleanTag.contains("build") && cleanCurrent.contains("build")) {
+                try {
+                    int tagBuild = Integer.parseInt(cleanTag.substring(cleanTag.lastIndexOf("build") + 5).replaceAll("[^0-9]", ""));
+                    int currentBuild = Integer.parseInt(cleanCurrent.substring(cleanCurrent.lastIndexOf("build") + 5).replaceAll("[^0-9]", ""));
+                    return tagBuild > currentBuild;
+                } catch (Exception ignored) {}
             }
-
-            // Or check versionCode if available
-            long currentCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? pInfo.getLongVersionCode() : pInfo.versionCode;
-
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("UpdateCheck", "Error comparing versions", e);
         }
         return false;
     }
 
     private void downloadUpdate() {
         if (downloadUrl == null) return;
+
+        downloadedApk = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "fullscreen_update.apk");
+        if (downloadedApk.exists()) {
+            downloadedApk.delete();
+        }
 
         android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(Uri.parse(downloadUrl));
         request.setTitle("Обновление Fullscreen");
@@ -253,6 +267,9 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
         if (manager != null) {
             manager.enqueue(request);
             Toast.makeText(this, "Загрузка началась", Toast.LENGTH_SHORT).show();
+            if (btnUpdateInstall != null) {
+                btnUpdateInstall.setVisibility(View.VISIBLE);
+            }
         }
     }
 
@@ -408,6 +425,7 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
             Preference adbPairingPref = findPreference("adb_pairing");
             if (adbPairingPref != null) {
+                updateAdbSummary(adbPairingPref);
                 adbPairingPref.setOnPreferenceClickListener(preference -> {
                     showAdbPairingDialog();
                     return true;
@@ -475,6 +493,11 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             shizukuPref.setSummary(ShizukuManager.getStatusSummary(requireContext()));
         }
 
+        private void updateAdbSummary(Preference pref) {
+            if (pref == null) return;
+            pref.setSummary(NativeAdbHelper.getStatusSummary(requireContext()));
+        }
+
         private void showSystemInfoDialog() {
             Context context = requireContext();
             String sysInfoText = LogManager.getInstance().gatherSystemInformation(context);
@@ -496,6 +519,11 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
 
         private void showAdbPairingDialog() {
             android.view.View view = getLayoutInflater().inflate(R.layout.dialog_adb_pairing, null);
+            com.google.android.material.button.MaterialButton btnOpenDev = view.findViewById(R.id.btn_open_dev_settings);
+            if (btnOpenDev != null) {
+                btnOpenDev.setOnClickListener(v -> NativeAdbHelper.openDeveloperSettings(requireContext()));
+            }
+
             com.google.android.material.textfield.TextInputEditText editPairingPort = view.findViewById(R.id.edit_pairing_port);
             com.google.android.material.textfield.TextInputEditText editCode = view.findViewById(R.id.edit_code);
             com.google.android.material.textfield.TextInputEditText editConnectionPort = view.findViewById(R.id.edit_connection_port);
@@ -515,6 +543,8 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
                                     boolean connectSuccess = NativeAdbHelper.connect(requireContext(), connectionPort);
                                     if (getActivity() != null) {
                                         requireActivity().runOnUiThread(() -> {
+                                            Preference adbPref = findPreference("adb_pairing");
+                                            if (adbPref != null) updateAdbSummary(adbPref);
                                             android.widget.Toast.makeText(requireContext(),
                                                 connectSuccess ? "ADB успешно сопряжен и подключен!" : "Сопряжение прошло, но ошибка подключения.",
                                                 android.widget.Toast.LENGTH_LONG).show();
@@ -584,6 +614,10 @@ public class MainActivity extends AppCompatActivity implements PreferenceFragmen
             Preference shizukuPref = findPreference("shizuku_control");
             if (shizukuPref != null) {
                 updateShizukuSummary(shizukuPref);
+            }
+            Preference adbPref = findPreference("adb_pairing");
+            if (adbPref != null) {
+                updateAdbSummary(adbPref);
             }
         }
 

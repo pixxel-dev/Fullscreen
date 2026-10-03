@@ -1,5 +1,6 @@
 package com.flyme.fscrn.installer;
 
+import com.flyme.fscrn.R;
 import com.flyme.fscrn.adb.LocalAdbHelper;
 import com.flyme.fscrn.adb.NativeAdbHelper;
 import android.app.PendingIntent;
@@ -10,6 +11,10 @@ import android.net.Uri;
 import android.os.Process;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -30,58 +35,69 @@ public class ApkInstaller {
     }
 
     public static void installApk(Context context, File file) {
-        // Priority sequence: 1. Shizuku -> 2. Native ADB (TLS) -> 3. Local ADB -> 4. Standard PackageInstaller
-        if (ShizukuManager.isAvailable()) {
-            installApkWithShizuku(context, file);
-            return;
-        }
+        LayoutInflater inflater = LayoutInflater.from(context);
+        View dialogView = inflater.inflate(R.layout.dialog_install_progress, null);
 
-        if (NativeAdbHelper.isConnected()) {
-            Toast.makeText(context, "Shizuku не запущен. Пробуем Native ADB (Android 11+)...", Toast.LENGTH_SHORT).show();
-            NativeAdbHelper.installApk(context, file, (success, message) -> {
-                runOnMain(context, () -> {
-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show();
-                    if (!success) {
-                        tryLegacyLocalAdb(context, file);
-                    }
-                });
-            });
-            return;
-        }
+        TextView tvFileName = dialogView.findViewById(R.id.tv_install_file_name);
+        TextView tvShizuku = dialogView.findViewById(R.id.tv_step_shizuku);
+        TextView tvNativeAdb = dialogView.findViewById(R.id.tv_step_native_adb);
+        TextView tvLocalAdb = dialogView.findViewById(R.id.tv_step_local_adb);
+        TextView tvPackageInstaller = dialogView.findViewById(R.id.tv_step_package_installer);
+        ProgressBar progressBar = dialogView.findViewById(R.id.pb_install_progress);
 
-        tryLegacyLocalAdb(context, file);
-    }
+        tvFileName.setText("Файл: " + file.getName());
 
-    private static void tryLegacyLocalAdb(Context context, File file) {
-        Toast.makeText(context, "Пробуем Local ADB (порт 5555)...", Toast.LENGTH_SHORT).show();
-        LocalAdbHelper.installApk(context, file, (success, message) -> {
-            runOnMain(context, () -> {
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show();
-                if (!success && message.contains("порт 5555")) {
-                    new AlertDialog.Builder(context)
-                        .setTitle("Внимание")
-                        .setMessage("Отладка по Wi-Fi отключена или недоступна. Открыть стандартный установщик?")
-                        .setPositiveButton("Да", (d, w) -> installApkWithPackageInstaller(context, file))
-                        .setNegativeButton("Отмена", null)
-                        .show();
+        AlertDialog dialog = new AlertDialog.Builder(context)
+                .setTitle("Диагностика и установка APK")
+                .setView(dialogView)
+                .setNegativeButton("Закрыть", null)
+                .show();
+
+        new Thread(() -> {
+            // STEP 1: SHIZUKU
+            if (ShizukuManager.isAvailable() && ShizukuManager.hasPermission()) {
+                runOnMain(context, () -> tvShizuku.setText("✅ 1. Shizuku API: Запуск установки..."));
+                executeShizukuInstall(context, file, dialog, tvShizuku, tvNativeAdb, tvLocalAdb, tvPackageInstaller, progressBar);
+                return;
+            } else {
+                runOnMain(context, () -> tvShizuku.setText("❌ 1. Shizuku API: Служба не запущена или нет прав"));
+            }
+
+            // STEP 2: NATIVE ADB TLS
+            if (NativeAdbHelper.isConnected()) {
+                runOnMain(context, () -> tvNativeAdb.setText("✅ 2. Native ADB TLS: Запуск установки..."));
+                executeNativeAdbInstall(context, file, dialog, tvNativeAdb, tvLocalAdb, tvPackageInstaller, progressBar);
+                return;
+            } else {
+                runOnMain(context, () -> tvNativeAdb.setText("❌ 2. Native ADB TLS: Нет сопряжения"));
+            }
+
+            // STEP 3: LOCAL ADB 5555
+            runOnMain(context, () -> tvLocalAdb.setText("⏳ 3. Local ADB: Проверка порта 5555..."));
+            LocalAdbHelper.installApk(context, file, (success, message) -> {
+                if (success) {
+                    runOnMain(context, () -> {
+                        tvLocalAdb.setText("✅ 3. Local ADB: Успешно установлено!");
+                        progressBar.setVisibility(View.GONE);
+                    });
+                } else {
+                    runOnMain(context, () -> {
+                        tvLocalAdb.setText("❌ 3. Local ADB: Порт 5555 недоступен");
+                        // STEP 4: PACKAGE INSTALLER
+                        tvPackageInstaller.setText("✅ 4. Стандартный PackageInstaller: Открытие инсталлера...");
+                        progressBar.setVisibility(View.GONE);
+                        installApkWithPackageInstaller(context, file);
+                    });
                 }
             });
-        });
+
+        }).start();
     }
 
-    public static void installApkWithShizuku(Context context, File file) {
-        if (!ShizukuManager.isAvailable()) {
-            Toast.makeText(context, "Shizuku не запущен или недоступен", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        if (!ShizukuManager.hasPermission()) {
-            ShizukuManager.requestPermission(null);
-            Toast.makeText(context, "Запрошено разрешение Shizuku, повторите установку после смены прав", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        Toast.makeText(context, "Начинаю установку через Shizuku...", Toast.LENGTH_SHORT).show();
+    private static void executeShizukuInstall(Context context, File file, AlertDialog dialog,
+                                               TextView tvShizuku, TextView tvNativeAdb,
+                                               TextView tvLocalAdb, TextView tvPackageInstaller,
+                                               ProgressBar progressBar) {
         new Thread(() -> {
             try {
                 int userId = 0;
@@ -105,18 +121,81 @@ public class ApkInstaller {
                 process.waitFor();
 
                 final String result = output.toString().trim();
-                runOnMain(context, () -> {
-                    if (result.contains("Success")) {
-                        Toast.makeText(context, "Успешно установлено через Shizuku", Toast.LENGTH_LONG).show();
-                    } else {
-                        Toast.makeText(context, "Ошибка установки Shizuku: " + (result.isEmpty() ? "Неизвестная ошибка" : result), Toast.LENGTH_LONG).show();
-                    }
-                });
+                if (result.contains("Success")) {
+                    runOnMain(context, () -> {
+                        tvShizuku.setText("✅ 1. Shizuku API: Успешно установлено без Root!");
+                        progressBar.setVisibility(View.GONE);
+                    });
+                } else {
+                    runOnMain(context, () -> {
+                        tvShizuku.setText("❌ 1. Shizuku API: Ошибка: " + (result.isEmpty() ? "Сбой команды" : result));
+                        // Fallback to Native ADB
+                        if (NativeAdbHelper.isConnected()) {
+                            tvNativeAdb.setText("✅ 2. Native ADB TLS: Запуск установки...");
+                            executeNativeAdbInstall(context, file, dialog, tvNativeAdb, tvLocalAdb, tvPackageInstaller, progressBar);
+                        } else {
+                            tvNativeAdb.setText("❌ 2. Native ADB TLS: Нет сопряжения");
+                            tvLocalAdb.setText("⏳ 3. Local ADB: Проверка порта 5555...");
+                            LocalAdbHelper.installApk(context, file, (success, message) -> {
+                                if (success) {
+                                    runOnMain(context, () -> {
+                                        tvLocalAdb.setText("✅ 3. Local ADB: Успешно установлено!");
+                                        progressBar.setVisibility(View.GONE);
+                                    });
+                                } else {
+                                    runOnMain(context, () -> {
+                                        tvLocalAdb.setText("❌ 3. Local ADB: Порт 5555 недоступен");
+                                        tvPackageInstaller.setText("✅ 4. Стандартный PackageInstaller: Открытие...");
+                                        progressBar.setVisibility(View.GONE);
+                                        installApkWithPackageInstaller(context, file);
+                                    });
+                                }
+                            });
+                        }
+                    });
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Shizuku install error", e);
-                runOnMain(context, () -> Toast.makeText(context, "Сбой установки Shizuku: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                runOnMain(context, () -> tvShizuku.setText("❌ 1. Shizuku API: Сбой " + e.getMessage()));
             }
         }).start();
+    }
+
+    private static void executeNativeAdbInstall(Context context, File file, AlertDialog dialog,
+                                                 TextView tvNativeAdb, TextView tvLocalAdb,
+                                                 TextView tvPackageInstaller, ProgressBar progressBar) {
+        NativeAdbHelper.installApk(context, file, (success, message) -> {
+            if (success) {
+                runOnMain(context, () -> {
+                    tvNativeAdb.setText("✅ 2. Native ADB TLS: Успешно установлено!");
+                    progressBar.setVisibility(View.GONE);
+                });
+            } else {
+                runOnMain(context, () -> {
+                    tvNativeAdb.setText("❌ 2. Native ADB TLS: " + message);
+                    tvLocalAdb.setText("⏳ 3. Local ADB: Проверка порта 5555...");
+                    LocalAdbHelper.installApk(context, file, (succ, msg) -> {
+                        if (succ) {
+                            runOnMain(context, () -> {
+                                tvLocalAdb.setText("✅ 3. Local ADB: Успешно установлено!");
+                                progressBar.setVisibility(View.GONE);
+                            });
+                        } else {
+                            runOnMain(context, () -> {
+                                tvLocalAdb.setText("❌ 3. Local ADB: Порт 5555 недоступен");
+                                tvPackageInstaller.setText("✅ 4. Стандартный PackageInstaller: Открытие...");
+                                progressBar.setVisibility(View.GONE);
+                                installApkWithPackageInstaller(context, file);
+                            });
+                        }
+                    });
+                });
+            }
+        });
+    }
+
+    public static void installApkWithShizuku(Context context, File file) {
+        installApk(context, file);
     }
 
     public static void installApkWithPackageInstaller(Context context, File file) {
