@@ -64,149 +64,139 @@ public class ApkInstaller {
                 .setNegativeButton("Закрыть", null)
                 .show();
 
-        new Thread(() -> {
-            // STEP 1: SHIZUKU
-            if (ShizukuManager.isAvailable() && ShizukuManager.hasPermission()) {
-                runOnMain(context, () -> tvShizuku.setText("✅ 1. Shizuku API: Запуск установки..."));
-                executeShizukuInstall(context, file, dialog, tvShizuku, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
-                return;
-            } else {
-                runOnMain(context, () -> tvShizuku.setText("❌ 1. Shizuku API: Служба не запущена или нет прав"));
-            }
-
-            // STEP 2: NATIVE ADB TLS
-            if (NativeAdbHelper.isConnected()) {
-                runOnMain(context, () -> tvNativeAdb.setText("✅ 2. Native ADB TLS: Запуск установки..."));
-                executeNativeAdbInstall(context, file, dialog, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
-                return;
-            } else {
-                runOnMain(context, () -> tvNativeAdb.setText("❌ 2. Native ADB TLS: Нет сопряжения"));
-            }
-
-            // STEP 3: LOCAL ADB 5555
-            runOnMain(context, () -> tvLocalAdb.setText("⏳ 3. Local ADB: Проверка порта 5555..."));
-            LocalAdbHelper.installApk(context, file, (success, message) -> {
-                if (success) {
-                    runOnMain(context, () -> {
-                        tvLocalAdb.setText("✅ 3. Local ADB: Успешно установлено!");
-                        progressBar.setVisibility(View.GONE);
-                    });
-                } else {
-                    runOnMain(context, () -> {
-                        tvLocalAdb.setText("❌ 3. Local ADB: Порт 5555 недоступен");
-                        // STEP 4: PACKAGE INSTALLER
-                        executePackageInstaller(context, file, tvPackageInstaller, tvFileProvider, progressBar);
-                    });
-                }
-            });
-
-        }).start();
+        runStep1_Shizuku(context, file, tvShizuku, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
     }
 
-    private static void executeShizukuInstall(Context context, File file, AlertDialog dialog,
-                                               TextView tvShizuku, TextView tvNativeAdb,
-                                               TextView tvLocalAdb, TextView tvPackageInstaller,
-                                               TextView tvFileProvider, ProgressBar progressBar) {
+    private static void runStep1_Shizuku(Context context, File file, TextView tvShizuku, TextView tvNativeAdb, TextView tvLocalAdb, TextView tvPackageInstaller, TextView tvFileProvider, ProgressBar progressBar) {
+        runOnMain(context, () -> tvShizuku.setText("⏳ 1. Shizuku API: Проверка..."));
         new Thread(() -> {
             try {
-                int userId = getUserId();
-                String userIdStr = String.valueOf(userId);
+                if (ShizukuManager.isAvailable() && ShizukuManager.hasPermission()) {
+                    runOnMain(context, () -> tvShizuku.setText("⏳ 1. Shizuku API: Запуск установки..."));
+                    int userId = getUserId();
+                    String userIdStr = String.valueOf(userId);
 
-                java.lang.Process process = rikka.shizuku.Shizuku.newProcess(
-                        new String[]{"pm", "install", "-r", "-g", "--user", userIdStr, file.getAbsolutePath()}, null, null);
+                    java.lang.Process process = rikka.shizuku.Shizuku.newProcess(
+                            new String[]{"pm", "install", "-r", "-g", "--user", userIdStr, file.getAbsolutePath()}, null, null);
 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                String line;
-                StringBuilder output = new StringBuilder();
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-                process.waitFor();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                    String line;
+                    StringBuilder output = new StringBuilder();
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                    }
+                    process.waitFor();
 
-                final String result = output.toString().trim();
-                if (result.contains("Success")) {
-                    runOnMain(context, () -> {
-                        tvShizuku.setText("✅ 1. Shizuku API: Успешно установлено без Root!");
-                        progressBar.setVisibility(View.GONE);
-                    });
+                    final String result = output.toString().trim();
+                    if (result.contains("Success")) {
+                        runOnMain(context, () -> {
+                            tvShizuku.setText("✅ 1. Shizuku API: Успешно установлено без Root!");
+                            progressBar.setVisibility(View.GONE);
+                        });
+                    } else {
+                        runOnMain(context, () -> {
+                            tvShizuku.setText("❌ 1. Shizuku API: " + (result.isEmpty() ? "Ошибка выполнения команды" : result));
+                            runStep2_NativeAdb(context, file, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
+                        });
+                    }
                 } else {
                     runOnMain(context, () -> {
-                        tvShizuku.setText("❌ 1. Shizuku API: " + (result.isEmpty() ? "Ошибка выполнения команды" : result));
-                        // Fallback to Native ADB
-                        if (NativeAdbHelper.isConnected()) {
-                            tvNativeAdb.setText("✅ 2. Native ADB TLS: Запуск установки...");
-                            executeNativeAdbInstall(context, file, dialog, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
-                        } else {
-                            tvNativeAdb.setText("❌ 2. Native ADB TLS: Нет сопряжения");
-                            tvLocalAdb.setText("⏳ 3. Local ADB: Проверка порта 5555...");
-                            LocalAdbHelper.installApk(context, file, (success, message) -> {
-                                if (success) {
-                                    runOnMain(context, () -> {
-                                        tvLocalAdb.setText("✅ 3. Local ADB: Успешно установлено!");
-                                        progressBar.setVisibility(View.GONE);
-                                    });
-                                } else {
-                                    runOnMain(context, () -> {
-                                        tvLocalAdb.setText("❌ 3. Local ADB: Порт 5555 недоступен");
-                                        executePackageInstaller(context, file, tvPackageInstaller, tvFileProvider, progressBar);
-                                    });
-                                }
-                            });
-                        }
+                        tvShizuku.setText("❌ 1. Shizuku API: Служба не запущена или нет прав");
+                        runStep2_NativeAdb(context, file, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
                     });
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Shizuku install error", e);
-                runOnMain(context, () -> tvShizuku.setText("❌ 1. Shizuku API: Сбой " + e.getMessage()));
+                runOnMain(context, () -> {
+                    tvShizuku.setText("❌ 1. Shizuku API: Сбой " + e.getMessage());
+                    runStep2_NativeAdb(context, file, tvNativeAdb, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
+                });
             }
         }).start();
     }
 
-    private static void executeNativeAdbInstall(Context context, File file, AlertDialog dialog,
-                                                 TextView tvNativeAdb, TextView tvLocalAdb,
-                                                 TextView tvPackageInstaller, TextView tvFileProvider,
-                                                 ProgressBar progressBar) {
-        NativeAdbHelper.installApk(context, file, (success, message) -> {
+    private static void runStep2_NativeAdb(Context context, File file, TextView tvNativeAdb, TextView tvLocalAdb, TextView tvPackageInstaller, TextView tvFileProvider, ProgressBar progressBar) {
+        runOnMain(context, () -> tvNativeAdb.setText("⏳ 2. Native ADB TLS: Проверка..."));
+        if (NativeAdbHelper.isConnected()) {
+            runOnMain(context, () -> tvNativeAdb.setText("⏳ 2. Native ADB TLS: Запуск установки..."));
+            NativeAdbHelper.installApk(context, file, (success, message) -> {
+                if (success) {
+                    runOnMain(context, () -> {
+                        tvNativeAdb.setText("✅ 2. Native ADB TLS: Успешно установлено!");
+                        progressBar.setVisibility(View.GONE);
+                    });
+                } else {
+                    runOnMain(context, () -> {
+                        tvNativeAdb.setText("❌ 2. Native ADB TLS: " + message);
+                        runStep3_LocalAdb(context, file, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
+                    });
+                }
+            });
+        } else {
+            runOnMain(context, () -> {
+                tvNativeAdb.setText("❌ 2. Native ADB TLS: Нет сопряжения");
+                runStep3_LocalAdb(context, file, tvLocalAdb, tvPackageInstaller, tvFileProvider, progressBar);
+            });
+        }
+    }
+
+    private static void runStep3_LocalAdb(Context context, File file, TextView tvLocalAdb, TextView tvPackageInstaller, TextView tvFileProvider, ProgressBar progressBar) {
+        runOnMain(context, () -> tvLocalAdb.setText("⏳ 3. Local ADB: Проверка порта 5555..."));
+        LocalAdbHelper.installApk(context, file, (success, message) -> {
             if (success) {
                 runOnMain(context, () -> {
-                    tvNativeAdb.setText("✅ 2. Native ADB TLS: Успешно установлено!");
+                    tvLocalAdb.setText("✅ 3. Local ADB: Успешно установлено!");
                     progressBar.setVisibility(View.GONE);
                 });
             } else {
                 runOnMain(context, () -> {
-                    tvNativeAdb.setText("❌ 2. Native ADB TLS: " + message);
-                    tvLocalAdb.setText("⏳ 3. Local ADB: Проверка порта 5555...");
-                    LocalAdbHelper.installApk(context, file, (succ, msg) -> {
-                        if (succ) {
-                            runOnMain(context, () -> {
-                                tvLocalAdb.setText("✅ 3. Local ADB: Успешно установлено!");
-                                progressBar.setVisibility(View.GONE);
-                            });
-                        } else {
-                            runOnMain(context, () -> {
-                                tvLocalAdb.setText("❌ 3. Local ADB: Порт 5555 недоступен");
-                                executePackageInstaller(context, file, tvPackageInstaller, tvFileProvider, progressBar);
-                            });
-                        }
-                    });
+                    tvLocalAdb.setText("❌ 3. Local ADB: Порт 5555 недоступен");
+                    runStep4_FileProvider(context, file, tvPackageInstaller, tvFileProvider, progressBar);
                 });
             }
         });
     }
 
-    private static void executePackageInstaller(Context context, File file,
-                                                 TextView tvPackageInstaller, TextView tvFileProvider,
-                                                 ProgressBar progressBar) {
-        tvPackageInstaller.setText("⏳ 4. PackageInstaller Session: Подготовка...");
+    private static void runStep4_FileProvider(Context context, File file, TextView tvPackageInstaller, TextView tvFileProvider, ProgressBar progressBar) {
+        runOnMain(context, () -> tvFileProvider.setText("⏳ 4. Системное окно (FileProvider): Подготовка..."));
+        new Thread(() -> {
+            try {
+                Uri apkUri = FileProvider.getUriForFile(
+                        context,
+                        context.getPackageName() + ".provider",
+                        file);
+
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+                context.startActivity(intent);
+
+                runOnMain(context, () -> {
+                    tvFileProvider.setText("✅ 4. Системное окно (FileProvider): Открыто диалоговое окно");
+                    tvPackageInstaller.setText("➖ 5. PackageInstaller Session: пропущено");
+                    progressBar.setVisibility(View.GONE);
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "FileProvider install error", e);
+                runOnMain(context, () -> {
+                    tvFileProvider.setText("❌ 4. Системное окно (FileProvider): Ошибка " + e.getMessage());
+                    runStep5_PackageInstaller(context, file, tvPackageInstaller, progressBar);
+                });
+            }
+        }).start();
+    }
+
+    private static void runStep5_PackageInstaller(Context context, File file, TextView tvPackageInstaller, ProgressBar progressBar) {
+        runOnMain(context, () -> tvPackageInstaller.setText("⏳ 5. PackageInstaller Session: Подготовка..."));
         new Thread(() -> {
             try {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     if (!context.getPackageManager().canRequestPackageInstalls()) {
                         runOnMain(context, () -> {
-                            tvPackageInstaller.setText("❌ 4. PackageInstaller: Требуется разрешение установки источников");
-                            tvFileProvider.setText("✅ 5. Системный интент (FileProvider): Открытие...");
+                            tvPackageInstaller.setText("❌ 5. PackageInstaller: Требуется разрешение установки источников");
                             progressBar.setVisibility(View.GONE);
-                            installApkWithFileProviderIntent(context, file);
                         });
                         return;
                     }
@@ -239,16 +229,14 @@ public class ApkInstaller {
                 session.close();
 
                 runOnMain(context, () -> {
-                    tvPackageInstaller.setText("✅ 4. PackageInstaller Session: Подтвердите запрос на экране");
+                    tvPackageInstaller.setText("✅ 5. PackageInstaller Session: Подтвердите запрос на экране");
                     progressBar.setVisibility(View.GONE);
                 });
             } catch (Exception e) {
                 Log.e(TAG, "PackageInstaller error", e);
                 runOnMain(context, () -> {
-                    tvPackageInstaller.setText("❌ 4. PackageInstaller: " + e.getMessage());
-                    tvFileProvider.setText("✅ 5. Системный интент (FileProvider): Открытие...");
+                    tvPackageInstaller.setText("❌ 5. PackageInstaller: " + e.getMessage());
                     progressBar.setVisibility(View.GONE);
-                    installApkWithFileProviderIntent(context, file);
                 });
             }
         }).start();

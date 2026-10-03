@@ -39,18 +39,18 @@
         android:layout_marginBottom="8dp" />
 
     <TextView
-        android:id="@+id/tv_step_package_installer"
+        android:id="@+id/tv_step_file_provider"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⏳ 4. PackageInstaller Session: ожидание..."
+        android:text="⏳ 4. Системное окно (FileProvider): ожидание..."
         android:textSize="14sp"
         android:layout_marginBottom="8dp" />
 
     <TextView
-        android:id="@+id/tv_step_file_provider"
+        android:id="@+id/tv_step_package_installer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="⏳ 5. Системное окно (FileProvider): ожидание..."
+        android:text="⏳ 5. PackageInstaller Session: ожидание..."
         android:textSize="14sp"
         android:layout_marginBottom="16dp" />
 
