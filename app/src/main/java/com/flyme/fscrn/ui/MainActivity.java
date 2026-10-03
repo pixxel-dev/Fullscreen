@@ -51,6 +51,8 @@ import java.io.InputStreamReader;
 import com.google.android.material.card.MaterialCardView;
 
 public class MainActivity extends AppCompatActivity {
+    private static android.graphics.Bitmap previousScreenSnapshot = null;
+
     private SharedPreferences sharedPreferences;
 
     private MaterialCardView updateCard;
@@ -88,6 +90,10 @@ public class MainActivity extends AppCompatActivity {
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 
         setContentView(R.layout.activity_main);
+
+        if (previousScreenSnapshot != null) {
+            applyScreenSnapshotCrossfade();
+        }
 
         if (!Settings.canDrawOverlays(this)) {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
@@ -344,6 +350,48 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    private void applyScreenSnapshotCrossfade() {
+        android.view.ViewGroup rootView = findViewById(android.R.id.content);
+        if (rootView != null && previousScreenSnapshot != null) {
+            android.widget.ImageView overlayView = new android.widget.ImageView(this);
+            overlayView.setImageBitmap(previousScreenSnapshot);
+            overlayView.setScaleType(android.widget.ImageView.ScaleType.FIT_XY);
+
+            android.widget.FrameLayout.LayoutParams params = new android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT);
+            rootView.addView(overlayView, params);
+
+            overlayView.animate()
+                    .alpha(0.0f)
+                    .setDuration(800)
+                    .setListener(new android.animation.AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(android.animation.Animator animation) {
+                            rootView.removeView(overlayView);
+                            previousScreenSnapshot = null;
+                        }
+                    });
+        } else {
+            previousScreenSnapshot = null;
+        }
+    }
+
+    private void captureScreenSnapshotAndRestart() {
+        View decorView = getWindow().getDecorView();
+        if (decorView.getWidth() > 0 && decorView.getHeight() > 0) {
+            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(
+                    decorView.getWidth(), decorView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+            decorView.draw(canvas);
+            previousScreenSnapshot = bitmap;
+        }
+
+        finish();
+        startActivity(getIntent());
+        overridePendingTransition(0, 0);
+    }
+
     private void toggleTheme() {
         boolean isNightMode = sharedPreferences.getBoolean(FlymeApp.PREF_NIGHT_MODE, false);
         boolean newNightMode = !isNightMode;
@@ -356,10 +404,7 @@ public class MainActivity extends AppCompatActivity {
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         }
 
-        // Smoothly restart activity to ensure theme change applies with 800ms fade animation
-        finish();
-        startActivity(getIntent());
-        overridePendingTransition(R.anim.fade_in_theme, R.anim.fade_out_theme);
+        captureScreenSnapshotAndRestart();
     }
 
     public static class SettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
