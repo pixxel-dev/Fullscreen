@@ -9,7 +9,7 @@
             app:summary="Показывать плавающую кнопку для быстрого запуска приложений"
             app:defaultValue="false" />
 
-        <com.flyme.fscrn.SearchableMultiSelectListPreference
+        <com.flyme.fscrn.ui.SearchableMultiSelectListPreference
             app:key="quick_launch_apps"
             app:title="Приложения для меню"
             app:summary="Выберите приложения для меню быстрого запуска"
@@ -42,7 +42,7 @@
             app:summary="Кнопка будет появляться поверх выбранных приложений"
             app:defaultValue="false" />
 
-        <com.flyme.fscrn.SearchableMultiSelectListPreference
+        <com.flyme.fscrn.ui.SearchableMultiSelectListPreference
             app:key="fullscreen_apps"
             app:title="Приложения для разворота"
             app:summary="При открытии этих приложений будет появляться кнопка"
